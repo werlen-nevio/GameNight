@@ -15,7 +15,8 @@ export type RelayClientMessage =
   | { t: 'bye' };
 
 export type RelayServerMessage =
-  | { t: 'welcome'; selfId: PeerId; hostId: PeerId; peers: PeerId[] }
+  | { t: 'welcome'; selfId: PeerId; hostId: PeerId; peers: PeerId[]; code?: string }
+  | { t: 'rotated'; code: string }
   | { t: 'error'; reason: string }
   | { t: 'join'; id: PeerId }
   | { t: 'leave'; id: PeerId }

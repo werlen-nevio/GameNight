@@ -32,10 +32,16 @@ async function run() {
   console.log(`Connecting ${N} clients to one lobby`);
   const t0 = Date.now();
   const clients = [];
-  for (let i = 0; i < N; i++) {
+  const host = client();
+  await host.open();
+  host.send({ t: 'hello', create: true });
+  await wait(60);
+  const code = host.last('welcome').code;
+  clients.push(host);
+  for (let i = 1; i < N; i++) {
     const c = client();
     await c.open();
-    c.send({ t: 'hello', room: 'STRESS', create: i === 0 });
+    c.send({ t: 'hello', room: code, create: false });
     clients.push(c);
     if (i % 8 === 0) await wait(5);
   }

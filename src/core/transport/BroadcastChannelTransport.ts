@@ -57,11 +57,14 @@ export class BroadcastChannelTransport implements Transport {
     }
   }
 
+  private room = '';
+
   connect(opts: ConnectOptions): Promise<void> {
     if (!BroadcastChannelTransport.supported) {
       return Promise.reject(new Error('BroadcastChannel wird hier nicht unterstützt'));
     }
     this.selfId = createId(10);
+    this.room = opts.room;
     this.setState('connecting');
     this.channel = new BroadcastChannel(`gamenight:${opts.room}`);
     this.channel.onmessage = (ev: MessageEvent) => this.onMessage(ev.data as Presence);
@@ -73,7 +76,7 @@ export class BroadcastChannelTransport implements Transport {
         this.hostId = this.electHost();
         this.setState('connected');
         this.startHeartbeat();
-        this.events.emit('open', { selfId: this.selfId!, hostId: this.hostId, peers: [...this.peers.keys()] });
+        this.events.emit('open', { selfId: this.selfId!, hostId: this.hostId, peers: [...this.peers.keys()], code: this.room });
         resolve();
       }, DISCOVERY_MS);
     });

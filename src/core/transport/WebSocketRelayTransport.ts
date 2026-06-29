@@ -97,7 +97,7 @@ export class WebSocketRelayTransport implements Transport {
         this.selfId = msg.selfId;
         this.setState('connected');
         this.startPing();
-        this.events.emit('open', { selfId: msg.selfId, hostId: msg.hostId, peers: msg.peers });
+        this.events.emit('open', { selfId: msg.selfId, hostId: msg.hostId, peers: msg.peers, code: (msg as any).code });
         onReady();
         break;
       case 'error':

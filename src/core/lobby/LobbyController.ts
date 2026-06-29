@@ -103,7 +103,7 @@ export class LobbyController {
     this.code = code.toUpperCase();
     if (create) this.hostOverride = this.identity.persistentId;
     this.offs.push(
-      this.net.events.on('open', () => this.onOpen()),
+      this.net.events.on('open', (e) => this.onOpen(e.code)),
       this.net.events.on('peerLeave', ({ id }) => this.onPeerLeave(id)),
       this.net.events.on('reconnected', () => this.broadcastHello(false)),
       this.lobby.on((type, data, from) => this.onLobby(type, data as Record<string, unknown>, from)),
@@ -117,7 +117,9 @@ export class LobbyController {
     });
   }
 
-  private onOpen(): void {
+  private onOpen(code?: string): void {
+    // Adopt the authoritative share code (server-assigned for networked transports).
+    if (code) this.code = code.toUpperCase();
     this.status = 'lobby';
     this.upsertSelf();
     this.broadcastHello(false);

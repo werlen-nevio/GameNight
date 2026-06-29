@@ -44,8 +44,10 @@ export interface ConnectOptions {
 export interface TransportEvents {
   /** Connection lifecycle. */
   state: TransportState;
-  /** Connected and identified: our id + the current host id + existing peers. */
-  open: { selfId: PeerId; hostId: PeerId; peers: PeerId[] };
+  /** Connected and identified: our id + the current host id + existing peers.
+   *  `code` is the authoritative share code (server-assigned for networked
+   *  transports; the client-chosen room for server-less ones). */
+  open: { selfId: PeerId; hostId: PeerId; peers: PeerId[]; code?: string };
   /** An application message arrived (`from` is populated). */
   message: NetMessage;
   peerJoin: { id: PeerId };

@@ -102,9 +102,11 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     startPayload: null,
 
     host: async (config, lobbyOpts) => {
+      // Server-less transports use this client code; networked transports get a
+      // secure server-assigned code, surfaced via the lobby snapshot.
       const code = createLobbyCode();
       await enter(code, true, config, lobbyOpts);
-      return code;
+      return get().lobby?.code ?? code;
     },
 
     join: async (code, config) => {

@@ -14,10 +14,19 @@ const isStr = (v, max = MAX_STR) => typeof v === 'string' && v.length > 0 && v.l
 const isOptStr = (v, max = MAX_STR) => v === undefined || (typeof v === 'string' && v.length <= max);
 
 const VALIDATORS = {
-  hello: (m) => isStr(m.room, MAX_ROOM_LEN) && typeof m.create === 'boolean' && isOptStr(m.token, 2048) && isOptStr(m.password) && isOptStr(m.name) && isOptStr(m.persistentId),
+  // On create the server assigns the code, so `room` is only required to join.
+  hello: (m) =>
+    typeof m.create === 'boolean' &&
+    (m.create === true || isStr(m.room, MAX_ROOM_LEN)) &&
+    isOptStr(m.room, MAX_ROOM_LEN) &&
+    isOptStr(m.token, 2048) &&
+    isOptStr(m.password) &&
+    isOptStr(m.name) &&
+    isOptStr(m.persistentId),
   relay: (m) => (m.to === 'all' || m.to === 'host' || isStr(m.to, 64)) && m.msg != null && typeof m.msg === 'object',
   ping: (m) => typeof m.ts === 'number',
   bye: () => true,
+  rotate: () => true,
   auth: (m) => isOptStr(m.persistentId) && isOptStr(m.name) && isOptStr(m.provider, 40),
   queue: (m) => isStr(m.qtype, 30) && isOptStr(m.modeId, 60),
   dequeue: (m) => isStr(m.ticketId, 64),

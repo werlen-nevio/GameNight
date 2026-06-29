@@ -101,7 +101,7 @@ export class LoopbackTransport implements Transport {
     const { hostId, peers } = hub.join(this, opts.room, !!opts.create);
     this.rttMs = this.latencyMs * 2;
     this.setState('connected');
-    this.events.emit('open', { selfId: this.selfId, hostId, peers });
+    this.events.emit('open', { selfId: this.selfId, hostId, peers, code: this.room });
   }
 
   send(msg: NetMessage): void {

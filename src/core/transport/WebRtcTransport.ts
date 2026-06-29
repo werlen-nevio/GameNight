@@ -117,7 +117,7 @@ export class WebRtcTransport implements Transport {
         this.setState('connected');
         this.startPing();
         for (const peer of m.peers as PeerId[]) this.createLink(peer, true);
-        this.events.emit('open', { selfId: m.selfId, hostId: m.hostId, peers: m.peers });
+        this.events.emit('open', { selfId: m.selfId, hostId: m.hostId, peers: m.peers, code: m.code });
         onReady();
         break;
       case 'error':

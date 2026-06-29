@@ -50,11 +50,12 @@ async function run() {
   const aw = a.last('welcome');
   ok(aw?.selfId && aw.hostId === aw.selfId, 'creator gets welcome and is host');
   ok(typeof aw.reconnectToken === 'string', 'welcome carries a reconnect token');
+  ok(typeof aw.code === 'string' && aw.code.length >= 8 && aw.code !== 'ABCDE', 'server assigns a secure share code (not the client-suggested one)');
   const aId = aw.selfId;
 
   const b = client();
   await b.open();
-  b.send({ t: 'hello', room: 'ABCDE', create: false });
+  b.send({ t: 'hello', room: aw.code, create: false });
   await wait(50);
   const bId = b.last('welcome').selfId;
   ok(a.take('join').some((m) => m.id === bId), 'host notified of join');
@@ -78,7 +79,7 @@ async function run() {
   v.send({ t: 'frobnicate' });
   await wait(30);
   ok(v.last('error')?.reason?.includes('unknown type'), 'unknown type rejected');
-  v.send({ t: 'hello', room: '', create: true });
+  v.send({ t: 'hello', create: false }); // join without a code is invalid
   await wait(30);
   ok(v.last('error')?.reason === 'invalid hello', 'invalid hello rejected');
 
@@ -98,17 +99,18 @@ async function run() {
   console.log('Password-protected lobby');
   const h = client();
   await h.open();
-  h.send({ t: 'hello', room: 'SECRET', create: true, password: 'hunter2' });
+  h.send({ t: 'hello', room: 'IGNORED', create: true, password: 'hunter2' });
   await wait(40);
   ok(h.last('welcome'), 'host creates password lobby');
+  const secretCode = h.last('welcome').code;
   const w = client();
   await w.open();
-  w.send({ t: 'hello', room: 'SECRET', create: false, password: 'wrong' });
+  w.send({ t: 'hello', room: secretCode, create: false, password: 'wrong' });
   await wait(40);
   ok(w.last('error')?.reason === 'wrong_password', 'wrong password rejected');
   const w2 = client();
   await w2.open();
-  w2.send({ t: 'hello', room: 'SECRET', create: false, password: 'hunter2' });
+  w2.send({ t: 'hello', room: secretCode, create: false, password: 'hunter2' });
   await wait(40);
   ok(w2.last('welcome'), 'correct password admitted');
 

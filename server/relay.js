@@ -115,13 +115,18 @@ function createRelayServer(options = {}) {
           send(ws, { t: 'error', reason: res.error, code: 403 });
           return;
         }
-        send(ws, { t: 'welcome', selfId: res.peerId, hostId: res.hostId, peers: res.peers, reconnectToken: res.reconnectToken });
+        send(ws, { t: 'welcome', selfId: res.peerId, hostId: res.hostId, peers: res.peers, reconnectToken: res.reconnectToken, code: res.code });
         if (ws.account) presence.setState(ws.account, 'in_lobby', res.code);
         break;
       }
       case 'relay':
         rooms.route(ws, m.to, m.msg);
         break;
+      case 'rotate': {
+        const code = rooms.rotate(ws);
+        if (code) send(ws, { t: 'rotated', code });
+        break;
+      }
       case 'ping':
         send(ws, { t: 'pong', ts: m.ts });
         break;
@@ -169,6 +174,10 @@ function createRelayServer(options = {}) {
   }, HEARTBEAT_MS);
   if (heartbeat.unref) heartbeat.unref();
 
+  // Reap expired lobbies (TTL).
+  const sweeper = setInterval(() => rooms.sweepExpired(), 60_000);
+  if (sweeper.unref) sweeper.unref();
+
   if (options.port != null) server.listen(options.port, options.host);
 
   return {
@@ -179,6 +188,7 @@ function createRelayServer(options = {}) {
     matchmaker,
     close() {
       clearInterval(heartbeat);
+      clearInterval(sweeper);
       wss.close();
       server.close();
     },
