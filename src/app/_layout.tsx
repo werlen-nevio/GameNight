@@ -55,6 +55,8 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="game/[id]" options={{ animation: 'fade' }} />
             <Stack.Screen name="daily" options={{ animation: 'fade' }} />
+            <Stack.Screen name="online" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="online-game" options={{ animation: 'fade' }} />
             <Stack.Screen name="shop" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="friends" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

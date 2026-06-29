@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
@@ -14,6 +14,8 @@ export interface ScreenProps {
   edges?: readonly Edge[];
   /** Soft ambient glow blobs behind content for depth. */
   decorative?: boolean;
+  /** Center content within this width on large screens (tablet/desktop). */
+  maxContentWidth?: number;
   style?: ViewStyle;
 }
 
@@ -27,9 +29,17 @@ export function Screen({
   gradient,
   edges = ['top', 'bottom'],
   decorative = true,
+  maxContentWidth,
   style,
 }: ScreenProps) {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const constrain = maxContentWidth != null && width > maxContentWidth;
+  const body = constrain ? (
+    <View style={{ flex: 1, width: '100%', maxWidth: maxContentWidth, alignSelf: 'center' }}>{children}</View>
+  ) : (
+    children
+  );
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -45,7 +55,7 @@ export function Screen({
         </>
       )}
       <SafeAreaView edges={edges} style={[styles.safe, style]}>
-        {children}
+        {body}
       </SafeAreaView>
     </View>
   );

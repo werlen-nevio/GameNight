@@ -43,9 +43,16 @@ export function FriendsScreen() {
   };
 
   return (
-    <Screen edges={['top', 'bottom']}>
+    <Screen edges={['top', 'bottom']} maxContentWidth={620}>
       <ModalHeader title={t.home.friends} onClose={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingTop: 0, gap: spacing.xl }} showsVerticalScrollIndicator={false}>
+        <GameButton
+          label="Online-Lobby starten"
+          size="lg"
+          leftIcon={<Icon name="globe" size={22} color="onPrimary" />}
+          onPress={() => router.push('/online')}
+        />
+
         {/* Private lobby */}
         <View>
           <SectionHeader title={t.online.privateLobby} subtitle="Teile den Code mit Freunden" />
