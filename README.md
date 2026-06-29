@@ -23,6 +23,19 @@ Rahmen, Titeln, Emotes und Themes.
 | **Der Preis ist heiß** | Schätze Produktpreise so genau wie möglich | ✅ Spielbar |
 | **Logo Quiz / Bilder Quiz / Musik Quiz** | Angekündigt für kommende Updates | 🔜 Bald |
 
+### Online-Multiplayer (plattformübergreifend)
+- **Lobby** wie bei Gartic Phone: Code · QR · Share-Link · Deep-Link, Beitritt ohne Konto
+- Ready-System, Host-Badge & -Transfer, Kick, Spielerfarben, Plattform-Icons, **Live-Ping**
+- **Reconnect**: 2-Minuten-Gnadenfrist, Slot bleibt erhalten
+- Chat, Emotes, animierte Beitritt/Verlassen, Konfetti wenn alle bereit
+- **iPhone ↔ Android ↔ Tablet ↔ Desktop-Browser** in derselben Lobby
+- Austauschbare Netzwerkschicht: WebSocket-Relay (mitgeliefert), BroadcastChannel
+  (server-los im Browser), Loopback – WebRTC/Photon/Colyseus/Steam plug-in-fähig
+- Alle bestehenden Modi laufen online – ohne Rewrite (geteilter Seed + Score-Events)
+- Voice-Chat als Interface vorbereitet (noch nicht implementiert)
+
+→ Details & Relay-Setup: [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md)
+
 ### Systeme
 - **Progression** – XP, Level (bis 200), Ränge, Level-Up-Belohnungen
 - **Wirtschaft** – Münzen & Gems, automatische Match-Belohnungen
@@ -68,6 +81,14 @@ npm run web        # Browser-Vorschau
 
 Die App läuft in **Expo Go** (SDK 56) sowie in Dev-/Release-Builds. Für einen
 Produktions-Build siehe [EAS Build](https://docs.expo.dev/build/introduction/).
+
+### Online über Geräte hinweg (optional)
+```bash
+node server/relay.js                                  # Reference-Relay (ws://…:8080)
+EXPO_PUBLIC_RELAY_URL=ws://localhost:8080 npm run web # Clients verbinden sich
+```
+Ohne Relay nutzt die App server-lose Transports (Browser-Tabs bzw. lokal), sodass
+alles auch ohne Infrastruktur läuft und demobar ist.
 
 ### Qualität
 ```bash

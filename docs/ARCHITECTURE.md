@@ -113,6 +113,18 @@ gleiche Fragen/Reihenfolge.
 vorgesehen: Dateien in `assets/audio` ablegen und über die Sound-Bank
 registrieren – die `AudioService`-API (Crossfade, Lautstärke) steht bereits.
 
+## Online-Multiplayer
+
+Die Netzwerkschicht ist transport-agnostisch und host-autoritativ. Spiellogik
+sendet nur Events, nie Sockets. Module:
+`core/events` (Protokoll) · `core/transport` (Transports + Factory) ·
+`core/network` (Reconnect) · `core/sync` (Host-Autorität, Seed, Uhr) ·
+`core/lobby` (Präsenz/Ready/Host/Reconnect) · `core/social`, `core/matchmaking`
+(vorbereitet) · `features/online` (UI).
+
+Vollständige Beschreibung inkl. „Online für bestehende Modi ohne Rewrite" und
+Relay-Setup: [`MULTIPLAYER.md`](MULTIPLAYER.md).
+
 ## Konventionen
 
 - Strikte Schichtgrenzen (siehe oben).

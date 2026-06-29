@@ -34,7 +34,8 @@ interface HelloData {
   color: string;
   platform: PeerIdentity['platform'];
   ready: boolean;
-  hostClaim: string | null;
+  /** The shared, explicit host pointer (creator or last manual transfer). */
+  hostOverride: string | null;
   reply: boolean;
 }
 
@@ -49,7 +50,12 @@ export class LobbyController {
   private lobby: LobbyTransportAdapter;
   private members = new Map<string, LobbyMember>();
   private chat: ChatMessage[] = [];
-  private hostPersistentId: string | null = null;
+  /**
+   * Explicit host pointer (set by the creator, or a manual transfer). Host
+   * election is otherwise *computed* deterministically, so every client always
+   * converges on the same host — even after an abrupt host disconnect.
+   */
+  private hostOverride: string | null = null;
   private status: LobbyStatus = 'connecting';
   private grace = new Map<string, ReturnType<typeof setTimeout>>();
   private offs: Array<() => void> = [];
@@ -64,20 +70,34 @@ export class LobbyController {
     this.lobby = new LobbyTransportAdapter(net);
   }
 
+  /**
+   * The effective host's persistentId, computed identically on every client:
+   * the explicit override if that member is connected, otherwise the connected
+   * member with the smallest persistentId (a deterministic, convergent rule).
+   */
+  private get effectiveHost(): string | null {
+    const connected = [...this.members.values()].filter((m) => m.connected);
+    if (this.hostOverride) {
+      const o = this.members.get(this.hostOverride);
+      if (o && o.connected) return this.hostOverride;
+    }
+    if (connected.length === 0) return null;
+    return connected.map((m) => m.persistentId).sort()[0];
+  }
+
   /** The host's *current* peer id (for authoritative routing). */
   get hostPeerId(): PeerId | null {
-    if (!this.hostPersistentId) return null;
-    const host = this.members.get(this.hostPersistentId);
-    return host?.peerId ?? null;
+    const host = this.effectiveHost;
+    return host ? this.members.get(host)?.peerId ?? null : null;
   }
 
   get isHost(): boolean {
-    return this.hostPersistentId === this.identity.persistentId;
+    return this.effectiveHost === this.identity.persistentId;
   }
 
   async connect(code: string, create: boolean): Promise<void> {
     this.code = code.toUpperCase();
-    if (create) this.hostPersistentId = this.identity.persistentId;
+    if (create) this.hostOverride = this.identity.persistentId;
     this.offs.push(
       this.net.events.on('open', () => this.onOpen()),
       this.net.events.on('peerLeave', ({ id }) => this.onPeerLeave(id)),
@@ -126,7 +146,7 @@ export class LobbyController {
       color: me?.color ?? this.identity.color ?? this.colorFor(0),
       platform: this.identity.platform,
       ready: me?.ready ?? false,
-      hostClaim: this.isHost ? this.identity.persistentId : null,
+      hostOverride: this.hostOverride,
       reply,
     };
   }
@@ -150,8 +170,7 @@ export class LobbyController {
         this.handleKick(data.persistentId as string);
         break;
       case 'host':
-        this.hostPersistentId = data.persistentId as string;
-        this.refreshHostFlags();
+        this.hostOverride = data.persistentId as string;
         this.emitChange();
         break;
       case 'start':
@@ -183,7 +202,7 @@ export class LobbyController {
       avatarEmoji: data.avatarEmoji,
       color: data.color || existing?.color || this.colorFor(this.members.size),
       platform: data.platform,
-      isHost: this.hostPersistentId === data.persistentId,
+      isHost: false, // derived in snapshot()
       isYou: data.persistentId === this.identity.persistentId,
       ready: data.ready ?? existing?.ready ?? false,
       connected: true,
@@ -193,10 +212,7 @@ export class LobbyController {
     this.members.set(member.persistentId, member);
 
     if (reclaim) this.clearGrace(data.persistentId);
-    if (data.hostClaim) {
-      this.hostPersistentId = data.hostClaim;
-      this.refreshHostFlags();
-    }
+    if (data.hostOverride) this.hostOverride = data.hostOverride;
     // Tell the newcomer who we are (one round only).
     if (!data.reply) this.broadcastHello(true);
     this.emitChange();
@@ -236,9 +252,8 @@ export class LobbyController {
 
   transferHost(persistentId: string): void {
     if (!this.isHost || !this.members.has(persistentId)) return;
-    this.hostPersistentId = persistentId;
+    this.hostOverride = persistentId;
     this.lobby.send('host', { persistentId });
-    this.refreshHostFlags();
     this.emitChange();
   }
 
@@ -325,18 +340,10 @@ export class LobbyController {
     if (persistentId === this.identity.persistentId) return;
     this.clearGrace(persistentId);
     if (this.members.delete(persistentId)) {
-      // If the host vanished, deterministically promote the earliest member.
-      if (this.hostPersistentId === persistentId) {
-        const next = [...this.members.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0];
-        this.hostPersistentId = next?.persistentId ?? this.identity.persistentId;
-        this.refreshHostFlags();
-      }
+      // Drop a stale override; the computed fallback then elects the new host.
+      if (this.hostOverride === persistentId) this.hostOverride = null;
       this.emitChange();
     }
-  }
-
-  private refreshHostFlags(): void {
-    for (const m of this.members.values()) m.isHost = m.persistentId === this.hostPersistentId;
   }
 
   // ---- snapshot -----------------------------------------------------------
@@ -349,14 +356,17 @@ export class LobbyController {
   }
 
   snapshot(): LobbyState {
-    const members = [...this.members.values()].sort((a, b) => a.joinedAt - b.joinedAt);
+    const host = this.effectiveHost;
+    const members = [...this.members.values()]
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+      .map((m) => ({ ...m, isHost: m.persistentId === host }));
     const connected = members.filter((m) => m.connected);
     const allReady = connected.length > 1 && connected.every((m) => m.ready);
     return {
       code: this.code,
       status: this.status,
       selfPersistentId: this.identity.persistentId,
-      hostPersistentId: this.hostPersistentId,
+      hostPersistentId: host,
       members,
       chat: this.chat,
       maxPlayers: this.maxPlayers,

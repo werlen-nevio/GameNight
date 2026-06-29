@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Test artifacts
+.tmp-test.mjs
