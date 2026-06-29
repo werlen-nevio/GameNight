@@ -22,7 +22,7 @@ const { WebSocketServer } = require('ws');
 const log = require('./lib/log');
 const metrics = require('./lib/metrics');
 const protocol = require('./lib/protocol');
-const { RateLimiter } = require('./lib/ratelimit');
+const { RateLimiter, Cooldowns } = require('./lib/ratelimit');
 const { Rooms } = require('./lib/rooms');
 const { Presence } = require('./lib/presence');
 const { Matchmaker } = require('./lib/matchmaking');
@@ -30,6 +30,20 @@ const { KvStore } = require('./lib/kvstore');
 const auth = require('./lib/auth');
 
 const HEARTBEAT_MS = 30_000;
+
+/** Classifies a message for per-type rate limiting. */
+function kindOf(m) {
+  if (m.t === 'hello') return 'join';
+  if (m.t === 'invite') return 'invite';
+  if (m.t === 'relay') {
+    const ch = m.msg && m.msg.channel;
+    const ty = m.msg && m.msg.type;
+    if (ch === 'rtcsig' || ch === 'voice') return 'voice';
+    if (ty === 'chat' || ch === 'chat') return 'chat';
+    if (ty === 'emote') return 'emote';
+  }
+  return 'default';
+}
 
 function createRelayServer(options = {}) {
   const rooms = new Rooms();
@@ -57,8 +71,9 @@ function createRelayServer(options = {}) {
   wss.on('connection', (ws) => {
     ws.isAlive = true;
     ws.limiter = new RateLimiter();
+    ws.cooldowns = new Cooldowns();
     ws.peerId = null;
-    ws.room = null;
+    ws.roomId = null;
     ws.account = null;
     metrics.inc('connections');
 
@@ -79,11 +94,35 @@ function createRelayServer(options = {}) {
 
       const result = protocol.parse(text);
       if (!result.ok) {
-        metrics.inc('messages_invalid');
+        metrics.inc('packets_invalid');
+        log.warn('invalid packet', { reason: result.error, account: ws.account });
         send(ws, { t: 'error', reason: result.error, code: 400 });
         return;
       }
-      dispatch(ws, result.msg);
+      const m = result.msg;
+
+      // Replay / dup / timestamp guard on relayed frames.
+      if (m.t === 'relay') {
+        const guard = protocol.relayGuard(ws, m);
+        if (!guard.ok) {
+          metrics.inc('packets_rejected');
+          log.warn('frame rejected', { reason: guard.error, peer: ws.peerId });
+          return;
+        }
+      }
+
+      // Per-type cooldowns (chat/emote/invite/join/voice) + auto temp-mute.
+      const cd = ws.cooldowns.check(kindOf(m));
+      if (!cd.ok) {
+        metrics.inc('rate_limited');
+        if (cd.reason === 'temp_muted') {
+          log.warn('temp mute', { account: ws.account });
+          send(ws, { t: 'error', reason: 'temp_muted', code: 429 });
+        }
+        return;
+      }
+
+      dispatch(ws, m);
     });
 
     ws.on('close', () => {
@@ -98,15 +137,32 @@ function createRelayServer(options = {}) {
   function dispatch(ws, m) {
     switch (m.t) {
       case 'auth': {
-        const verified = m.token ? auth.verifyToken(m.token) : null;
+        const verified = m.token ? auth.verifyToken(m.token, m.deviceId) : null;
         const persistentId = verified?.sub || m.persistentId || 'P' + Math.random().toString(36).slice(2, 12);
-        const token = auth.issueToken(persistentId, m.provider || verified?.provider || 'guest');
+        const token = auth.issueToken(persistentId, m.provider || verified?.provider || 'guest', m.deviceId);
+        const refreshToken = auth.issueRefresh(persistentId, m.deviceId);
+        ws.tokenJti = auth.jtiOf(token);
         presence.online(ws, persistentId, m.name);
-        send(ws, { t: 'authed', persistentId, token });
+        send(ws, { t: 'authed', persistentId, token, refreshToken });
         break;
       }
+      case 'refresh': {
+        const token = auth.refresh(m.refreshToken, m.deviceId);
+        if (!token) {
+          metrics.inc('failed_auth');
+          send(ws, { t: 'error', reason: 'invalid_refresh', code: 401 });
+          break;
+        }
+        send(ws, { t: 'authed', persistentId: ws.account, token });
+        break;
+      }
+      case 'logout':
+        auth.revoke(ws.tokenJti);
+        ws.close();
+        break;
       case 'hello': {
         if (auth.AUTH_REQUIRED && !ws.account && !auth.verifyToken(m.token)) {
+          metrics.inc('failed_auth');
           send(ws, { t: 'error', reason: 'auth_required', code: 401 });
           return;
         }

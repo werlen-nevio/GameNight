@@ -22,6 +22,7 @@ export class WebSocketRelayTransport implements Transport {
   private ws: WebSocket | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private opts: ConnectOptions | null = null;
+  private seq = 0;
 
   private setState(s: TransportState) {
     this.state = s;
@@ -136,7 +137,8 @@ export class WebSocketRelayTransport implements Transport {
 
   send(msg: NetMessage): void {
     if (this.state !== 'connected') return;
-    this.sendRaw({ t: 'relay', to: msg.to ?? 'all', msg });
+    // Monotonic seq enables the relay's replay/dup rejection.
+    this.sendRaw({ t: 'relay', to: msg.to ?? 'all', msg, seq: ++this.seq });
   }
 
   close(): void {

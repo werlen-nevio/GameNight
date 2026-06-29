@@ -59,6 +59,7 @@ export class WebRtcTransport implements Transport {
   private links = new Map<PeerId, PeerLink>();
   private opts: ConnectOptions | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private seq = 0;
 
   private setState(s: TransportState) {
     this.state = s;
@@ -260,10 +261,10 @@ export class WebRtcTransport implements Transport {
           /* fall through to relay */
         }
       }
-      this.relaySend({ t: 'relay', to: to === 'all' ? 'all' : peerId, msg });
+      this.relaySend({ t: 'relay', to: to === 'all' ? 'all' : peerId, msg, seq: ++this.seq });
       if (to === 'all') break; // relay 'all' fan-out already covers everyone
     }
-    if (to === 'host' && !this.links.size) this.relaySend({ t: 'relay', to: 'host', msg });
+    if (to === 'host' && !this.links.size) this.relaySend({ t: 'relay', to: 'host', msg, seq: ++this.seq });
   }
 
   close(): void {

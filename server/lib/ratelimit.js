@@ -43,4 +43,49 @@ class RateLimiter {
   }
 }
 
-module.exports = { RateLimiter };
+/**
+ * Per-message-type cooldowns with automatic temporary muting. Protects against
+ * chat/emote/invite/join spam and throttles voice signaling, independently of
+ * the global byte/packet {@link RateLimiter}.
+ */
+const COOLDOWN_MS = {
+  chat: 400,
+  emote: 250,
+  invite: 2000,
+  join: 800,
+  voice: 25,
+  default: 0,
+};
+const MUTE_THRESHOLD = 6; // consecutive violations of one kind
+const MUTE_MS = 10_000;
+
+class Cooldowns {
+  constructor() {
+    this.last = Object.create(null);
+    this.violations = Object.create(null);
+    this.mutedUntil = Object.create(null);
+  }
+
+  /** Returns { ok } or { ok:false, reason } for a message of the given kind. */
+  check(kind) {
+    const now = Date.now();
+    if (this.mutedUntil[kind] && this.mutedUntil[kind] > now) return { ok: false, reason: 'muted' };
+    const min = COOLDOWN_MS[kind] ?? COOLDOWN_MS.default;
+    if (min === 0) return { ok: true };
+    const since = now - (this.last[kind] || 0);
+    if (since < min) {
+      this.violations[kind] = (this.violations[kind] || 0) + 1;
+      if (this.violations[kind] >= MUTE_THRESHOLD) {
+        this.mutedUntil[kind] = now + MUTE_MS;
+        this.violations[kind] = 0;
+        return { ok: false, reason: 'temp_muted' };
+      }
+      return { ok: false, reason: 'cooldown' };
+    }
+    this.last[kind] = now;
+    this.violations[kind] = 0;
+    return { ok: true };
+  }
+}
+
+module.exports = { RateLimiter, Cooldowns };

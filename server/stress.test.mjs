@@ -52,7 +52,7 @@ async function run() {
 
   console.log('Broadcast fan-out');
   clients.forEach((c) => (c.inbox.length = 0));
-  clients[1].send({ t: 'relay', to: 'all', msg: { v: 1, channel: 'game', type: 'PING', data: 1, ts: 0 } });
+  clients[1].send({ t: 'relay', to: 'all', msg: { v: 1, channel: 'game', type: 'PING', data: 1, ts: Date.now() } });
   await wait(500);
   const received = clients.filter((c, i) => i !== 1 && c.last('msg')?.msg.type === 'PING').length;
   ok(received === N - 1, `broadcast reached all ${N - 1} others (${received})`);

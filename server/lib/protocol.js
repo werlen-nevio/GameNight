@@ -23,11 +23,17 @@ const VALIDATORS = {
     isOptStr(m.password) &&
     isOptStr(m.name) &&
     isOptStr(m.persistentId),
-  relay: (m) => (m.to === 'all' || m.to === 'host' || isStr(m.to, 64)) && m.msg != null && typeof m.msg === 'object',
+  relay: (m) =>
+    (m.to === 'all' || m.to === 'host' || isStr(m.to, 64)) &&
+    m.msg != null &&
+    typeof m.msg === 'object' &&
+    (m.seq === undefined || typeof m.seq === 'number'),
   ping: (m) => typeof m.ts === 'number',
   bye: () => true,
   rotate: () => true,
-  auth: (m) => isOptStr(m.persistentId) && isOptStr(m.name) && isOptStr(m.provider, 40),
+  auth: (m) => isOptStr(m.persistentId) && isOptStr(m.name) && isOptStr(m.provider, 40) && isOptStr(m.token, 2048) && isOptStr(m.deviceId, 80),
+  refresh: (m) => isStr(m.refreshToken, 2048) && isOptStr(m.deviceId, 80),
+  logout: () => true,
   queue: (m) => isStr(m.qtype, 30) && isOptStr(m.modeId, 60),
   dequeue: (m) => isStr(m.ticketId, 64),
   watch: (m) => Array.isArray(m.ids) && m.ids.length <= 200 && m.ids.every((x) => isStr(x, 64)),
@@ -52,4 +58,22 @@ function parse(raw) {
   return { ok: true, msg: m };
 }
 
-module.exports = { parse, MAX_MESSAGE_BYTES };
+const TS_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Replay / dup / timestamp guard for relayed frames. A monotonically-increasing
+ * per-connection `seq` rejects replayed or duplicated frames; the inner message
+ * timestamp must be within a sane window. Returns { ok } or { ok:false, error }.
+ */
+function relayGuard(ws, m) {
+  if (typeof m.seq === 'number') {
+    if (!Number.isFinite(m.seq)) return { ok: false, error: 'bad_seq' };
+    if (ws.lastSeq !== undefined && m.seq <= ws.lastSeq) return { ok: false, error: 'replay_or_dup' };
+    ws.lastSeq = m.seq;
+  }
+  const ts = m.msg && typeof m.msg.ts === 'number' ? m.msg.ts : null;
+  if (ts !== null && Math.abs(Date.now() - ts) > TS_WINDOW_MS) return { ok: false, error: 'bad_timestamp' };
+  return { ok: true };
+}
+
+module.exports = { parse, relayGuard, MAX_MESSAGE_BYTES };

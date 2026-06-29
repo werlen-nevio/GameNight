@@ -61,7 +61,7 @@ async function run() {
   ok(a.take('join').some((m) => m.id === bId), 'host notified of join');
 
   a.clear(); b.clear();
-  b.send({ t: 'relay', to: 'all', msg: { v: 1, channel: 'game', type: 'X', data: 1, ts: 0 } });
+  b.send({ t: 'relay', to: 'all', msg: { v: 1, channel: 'game', type: 'X', data: 1, ts: Date.now() } });
   await wait(40);
   ok(a.last('msg')?.from === bId, 'broadcast routed to host');
 
