@@ -1,4 +1,5 @@
 export { AppText, type TextProps } from './Text';
+export { GradientText, type GradientTextProps } from './GradientText';
 export { PressableScale, type PressableScaleProps } from './PressableScale';
 export { GameButton, type GameButtonProps, type ButtonVariant, type ButtonSize } from './GameButton';
 export { Card, type CardProps } from './Card';
@@ -13,3 +14,5 @@ export { Avatar, type AvatarProps } from './Avatar';
 export { Divider } from './Divider';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { Tag, type TagTone } from './Tag';
+export { Toggle } from './Toggle';
+export { ModalHeader } from './ModalHeader';
