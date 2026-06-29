@@ -34,6 +34,10 @@ export interface ConnectOptions {
   create?: boolean;
   /** Relay/signaling endpoint for networked transports. */
   url?: string;
+  /** Optional lobby password (validated server-side). */
+  password?: string;
+  /** Lobby visibility for the public browser/quick-play. */
+  privacy?: 'public' | 'private' | 'invite';
 }
 
 /** Events any {@link Transport} emits. The app never reads sockets directly. */

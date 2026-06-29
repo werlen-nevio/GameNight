@@ -12,7 +12,7 @@ export const PROTOCOL_VERSION = 1;
 export type PeerId = string;
 
 /** Logical channels multiplex independent concerns over one connection. */
-export type Channel = 'ctrl' | 'lobby' | 'sync' | 'game' | 'chat' | 'voice';
+export type Channel = 'ctrl' | 'lobby' | 'sync' | 'game' | 'chat' | 'voice' | 'rtcsig';
 
 /** Routing target for a message. */
 export type Target = PeerId | 'all' | 'host';

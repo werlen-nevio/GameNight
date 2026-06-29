@@ -95,7 +95,11 @@ export class LobbyController {
     return this.effectiveHost === this.identity.persistentId;
   }
 
-  async connect(code: string, create: boolean): Promise<void> {
+  async connect(
+    code: string,
+    create: boolean,
+    opts?: { password?: string; privacy?: 'public' | 'private' | 'invite' },
+  ): Promise<void> {
     this.code = code.toUpperCase();
     if (create) this.hostOverride = this.identity.persistentId;
     this.offs.push(
@@ -104,7 +108,13 @@ export class LobbyController {
       this.net.events.on('reconnected', () => this.broadcastHello(false)),
       this.lobby.on((type, data, from) => this.onLobby(type, data as Record<string, unknown>, from)),
     );
-    await this.net.connect({ room: this.code, identity: this.identity, create });
+    await this.net.connect({
+      room: this.code,
+      identity: this.identity,
+      create,
+      password: opts?.password,
+      privacy: opts?.privacy,
+    });
   }
 
   private onOpen(): void {

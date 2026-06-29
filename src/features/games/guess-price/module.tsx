@@ -15,4 +15,5 @@ export const guessPriceModule: GameModule = {
   Gameplay: GuessPrice,
   defaultOptions: {},
   buildConfig: () => ({ rounds: 5, timeLimit: 0 }),
+  scoreCap: (config) => config.rounds * 100,
 };

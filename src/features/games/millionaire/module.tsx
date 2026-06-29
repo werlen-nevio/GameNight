@@ -16,4 +16,5 @@ export const millionaireModule: GameModule = {
   Gameplay: Millionaire,
   defaultOptions: {},
   buildConfig: () => ({ rounds: 15, timeLimit: 0 }),
+  scoreCap: () => 1_000_000,
 };

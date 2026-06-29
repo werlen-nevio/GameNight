@@ -51,7 +51,7 @@ export class WebSocketRelayTransport implements Transport {
       this.ws = ws;
 
       ws.onopen = () => {
-        this.sendRaw({ t: 'hello', room: opts.room, create: !!opts.create });
+        this.sendRaw({ t: 'hello', room: opts.room, create: !!opts.create, password: opts.password, privacy: opts.privacy });
       };
 
       ws.onmessage = (ev: MessageEvent) => {

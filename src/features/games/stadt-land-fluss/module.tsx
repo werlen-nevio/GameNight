@@ -69,4 +69,5 @@ export const stadtLandFlussModule: GameModule = {
     timeLimit: timeForDifficulty(difficulty),
     options: { count: (options.count as number) ?? 6, packs: options.packs ?? 'all' },
   }),
+  scoreCap: (config) => config.rounds * ((config.options?.count as number) ?? 6) * 20,
 };

@@ -13,6 +13,7 @@ import {
   Icon,
   ModalHeader,
   Screen,
+  Toggle,
 } from '../../core/ui';
 import { Feedback } from '../../core/services';
 import { hasRelay } from '../../core/transport/config';
@@ -38,14 +39,17 @@ export function OnlineHub({ initialCode, initialCreate }: { initialCode?: string
   const [code, setCode] = useState(initialCode ?? '');
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const autoJoined = useRef(false);
 
   const doJoin = async (c: string) => {
     if (busy || c.length < 4) return;
     setBusy(true);
     try {
-      await join(c);
+      await connect(c.toUpperCase(), false, undefined, { password: password || undefined });
     } catch {
+      toast.error('Beitritt fehlgeschlagen', 'Falscher Code oder Passwort.');
       Feedback.error();
     } finally {
       setBusy(false);
@@ -77,7 +81,7 @@ export function OnlineHub({ initialCode, initialCreate }: { initialCode?: string
     setBusy(true);
     Feedback.press();
     try {
-      await host();
+      await host(undefined, { password: password || undefined, privacy: isPrivate ? 'private' : 'public' });
     } finally {
       setBusy(false);
     }
@@ -96,6 +100,34 @@ export function OnlineHub({ initialCode, initialCreate }: { initialCode?: string
             Erstelle eine Lobby oder tritt mit einem Code bei – plattformübergreifend.
           </AppText>
         </Animated.View>
+
+        <Card style={{ gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <Icon name="lock-closed" size={16} color="textMuted" />
+              <AppText variant="caption" color="textMuted">
+                Private Lobby
+              </AppText>
+            </View>
+            <Toggle value={isPrivate} onChange={setIsPrivate} />
+          </View>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Passwort (optional)"
+            placeholderTextColor={theme.colors.textFaint}
+            secureTextEntry
+            style={{
+              color: theme.colors.text,
+              fontFamily: 'Nunito_600SemiBold',
+              fontSize: 15,
+              backgroundColor: 'rgba(0,0,0,0.25)',
+              borderRadius: radii.md,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+            }}
+          />
+        </Card>
 
         <GameButton
           label="Lobby erstellen"

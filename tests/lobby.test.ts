@@ -2,6 +2,7 @@
 // LoopbackTransport (no React Native in this graph). Bundled with esbuild.
 import { LobbyController } from '../src/core/lobby/LobbyController';
 import { LoopbackTransport } from '../src/core/transport/LoopbackTransport';
+import { sanitizeReport } from '../src/features/games/shared/antiCheat';
 
 let pass = 0,
   fail = 0;
@@ -59,6 +60,14 @@ async function run() {
   b.ctrl.leave();
   await tick(40);
   ok(a.ctrl.snapshot().members.find((m) => m.persistentId === 'BBB') === undefined, 'Bob removed after leave');
+
+  console.log('Anti-cheat score validation (host never trusts the client)');
+  const honest = sanitizeReport({ score: 120, correctAnswers: 6, perfect: false, rounds: 3 }, { scoreCap: 360, rounds: 3 });
+  ok(honest.trusted && honest.score === 120, 'honest in-range score accepted');
+  const cheat = sanitizeReport({ score: 999999, correctAnswers: 9999, perfect: true, rounds: 3 }, { scoreCap: 360, rounds: 3 });
+  ok(!cheat.trusted && cheat.score === 360, 'impossible score clamped to the cap');
+  const bad = sanitizeReport({ score: NaN, correctAnswers: -5, perfect: false, rounds: 3 }, { scoreCap: 360, rounds: 3 });
+  ok(bad.score === 0 && bad.correctAnswers === 0, 'NaN / negative values rejected to 0');
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

@@ -2,7 +2,8 @@ import { isWeb } from '../platform/platform';
 import { BroadcastChannelTransport } from './BroadcastChannelTransport';
 import { LoopbackTransport } from './LoopbackTransport';
 import { WebSocketRelayTransport } from './WebSocketRelayTransport';
-import { SteamTransport, WebRtcTransport } from './PlannedTransports';
+import { WebRtcTransport } from './WebRtcTransport';
+import { SteamTransport } from './PlannedTransports';
 import { RELAY_URL } from './config';
 import type { Transport, TransportKind } from './types';
 

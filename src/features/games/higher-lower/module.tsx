@@ -45,4 +45,5 @@ export const higherLowerModule: GameModule = {
     timeLimit: 0,
     options: { category: options.category ?? 'random' },
   }),
+  scoreCap: (config) => config.rounds,
 };

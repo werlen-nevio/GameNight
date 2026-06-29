@@ -16,6 +16,7 @@ import { usePlayerStore, useSettingsStore } from '../state';
 import { useAccountStore } from '../state/accountStore';
 import { ToastHost } from '../features/shared/ToastHost';
 import { OnlineNotifications } from '../features/online/OnlineNotifications';
+import { ReconnectOverlay } from '../features/online/ReconnectOverlay';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -72,6 +73,7 @@ export default function RootLayout() {
             <Stack.Screen name="achievements" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
           <OnlineNotifications />
+          <ReconnectOverlay />
           <ToastHost />
         </ThemeProvider>
       </SafeAreaProvider>

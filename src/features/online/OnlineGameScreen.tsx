@@ -14,6 +14,7 @@ import {
 } from '../../domain';
 import { CountdownIntro } from '../games/shared/CountdownIntro';
 import { ResultsScreen } from '../games/shared/ResultsScreen';
+import { sanitizeReport } from '../games/shared/antiCheat';
 import { getModule } from '../games/registry';
 import { usePlayerStore, type MatchSummary } from '../../state';
 import { useOnlineStore } from '../../state/onlineStore';
@@ -102,7 +103,16 @@ export function OnlineGameScreen() {
     return sync.on((event) => {
       if (event.type === 'PlayerFinished') {
         const r = event.data as FinishedReport;
-        reports.current.set(r.persistentId, r);
+        // Anti-cheat: the host never trusts a client's reported score.
+        let stored = r;
+        if (sync.isHost && module && startPayload) {
+          const cfg = (startPayload.config ?? {}) as { rounds?: number };
+          const rounds = cfg.rounds ?? 5;
+          const cap = module.scoreCap ? module.scoreCap({ rounds, timeLimit: 0, options: (startPayload.config as any)?.options }) : rounds * 1000;
+          const s = sanitizeReport({ score: r.score, correctAnswers: r.correctAnswers, perfect: r.perfect, rounds }, { scoreCap: cap, rounds });
+          stored = { ...r, score: s.score, correctAnswers: s.correctAnswers, perfect: s.perfect };
+        }
+        reports.current.set(r.persistentId, stored);
         setFinished(new Set(reports.current.keys()));
         // Host finalizes once everyone expected has reported.
         if (sync.isHost && expected.current.every((id) => reports.current.has(id))) {

@@ -25,10 +25,15 @@ interface OnlineState {
   /** Set when the host launches a match; consumed by the online game screen. */
   startPayload: StartPayload | null;
 
-  host: (config?: TransportConfig) => Promise<string>;
+  host: (config?: TransportConfig, lobbyOpts?: { password?: string; privacy?: 'public' | 'private' | 'invite' }) => Promise<string>;
   join: (code: string, config?: TransportConfig) => Promise<void>;
   /** Enter a specific code (create=true hosts/creates, false joins). */
-  connect: (code: string, create: boolean, config?: TransportConfig) => Promise<void>;
+  connect: (
+    code: string,
+    create: boolean,
+    config?: TransportConfig,
+    lobbyOpts?: { password?: string; privacy?: 'public' | 'private' | 'invite' },
+  ) => Promise<void>;
   /** Enter the matchmaking queue (public/quick/ranked) via the relay. */
   quickPlay: (qtype: string, modeId?: string) => void;
   leave: () => void;
@@ -50,7 +55,12 @@ function selfIdentity() {
 export const useOnlineStore = create<OnlineState>((set, get) => {
   let rttTimer: ReturnType<typeof setInterval> | null = null;
 
-  async function enter(code: string, create: boolean, config?: TransportConfig): Promise<void> {
+  async function enter(
+    code: string,
+    create: boolean,
+    config?: TransportConfig,
+    lobbyOpts?: { password?: string; privacy?: 'public' | 'private' | 'invite' },
+  ): Promise<void> {
     get().reset();
     const net = new NetworkClient(config);
     const controller = new LobbyController(net, selfIdentity());
@@ -75,7 +85,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     });
 
     sync.start();
-    await controller.connect(code, create);
+    await controller.connect(code, create, lobbyOpts);
     set({ status: 'connected', lobby: controller.snapshot() });
 
     rttTimer = setInterval(() => controller.pollRtt(), 2500);
@@ -91,9 +101,9 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     transportKind: defaultTransportKind(),
     startPayload: null,
 
-    host: async (config) => {
+    host: async (config, lobbyOpts) => {
       const code = createLobbyCode();
-      await enter(code, true, config);
+      await enter(code, true, config, lobbyOpts);
       return code;
     },
 
@@ -101,8 +111,8 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
       await enter(code.toUpperCase(), false, config);
     },
 
-    connect: async (code, create, config) => {
-      await enter(code.toUpperCase(), create, config);
+    connect: async (code, create, config, lobbyOpts) => {
+      await enter(code.toUpperCase(), create, config, lobbyOpts);
     },
 
     quickPlay: (qtype, modeId) => relayServices.enqueue(qtype, modeId),

@@ -97,6 +97,68 @@ Host-Zuweisung, Broadcast/Direkt/Host-Routing, Ping/Pong und Host-Migration.
 WebRTC-/Discord-/Steam-Voice kann später eingebunden werden, ohne Lobby- oder
 Gameplay-Code zu ändern.
 
+## Production features
+
+### Voice chat (`core/voice`) — fully isolated from gameplay
+Real WebRTC voice: per-peer `RTCPeerConnection`s carrying an Opus track, mic
+capture with **noise suppression + echo cancellation + AGC**, **push-to-talk**
+and **voice-activation** gating, **mute self / deafen**, **per-peer volume +
+mute**, **speaking indicators** (animated ring), and the mic permission flow.
+Web uses the browser APIs directly; native binds to `react-native-webrtc` in a
+dev/native build (graceful-off otherwise). Auto-join on lobby enter, auto-leave
+on exit. Signaling rides the lobby's `voice` channel — gameplay never sees it.
+
+### Real WebRTC data transport (`WebRtcTransport`)
+P2P over DataChannels with the relay as signaling **and** fallback: messages go
+direct when the channel is open, else relay through the server (NAT-safe). ICE
+uses STUN + optional TURN; ICE-restart recovers dropped links. Same `Transport`
+interface → game code unchanged.
+
+### Production relay (`server/`)
+Modular (no giant class): HMAC **auth tokens**, **heartbeats**, **rate limiting**
+(token bucket), strict **message validation**, **permessage-deflate**, lobby
+lifecycle with **password + privacy**, **presence + friend invites**,
+**matchmaking queues**, a **cloud-save KV**, structured logs and **/health +
+/metrics**. Stateless tokens + per-node metrics ⇒ horizontally scalable (swap
+rooms/presence/kv for Redis to share state across nodes).
+
+### Friends, presence & matchmaking
+Local roster + **live presence** (online / in-lobby / playing), add-by-code,
+favorites, block, **invite-to-lobby** (one-tap-join toast), recently-played, and
+**Quick Play** matchmaking. Public/ranked queues run on the relay; private/invite
+resolve to codes.
+
+### Auth & cloud save
+**Guest/Anonymous** fully implemented (persistent id + relay session token);
+**Google/Apple/Steam** provider adapters wired to the same flow (activate with
+credentials / native build). **Cloud save** syncs profile + settings via the
+relay KV (last-write-wins; swappable for Firestore/Supabase/Redis).
+
+### Anti-cheat
+The host never trusts a client: self-reported scores are **clamped to the
+legitimately achievable range** per match config (`scoreCap` per mode);
+NaN/negative/impossible values are rejected. Host stays authoritative.
+
+### Steam (`core/steam`)
+Complete interface set — Lobbies, Networking, Friends, Invites, Rich Presence,
+Overlay, Voice — with a null adapter; a desktop Steamworks build binds the same
+surface, so the desktop version uses Steam seamlessly when available.
+
+### Error handling
+2-minute reconnection (exponential backoff) keeps the slot; a global **reconnect
+overlay** covers dropped network / backgrounding / relay restart while the
+game/lobby underneath resumes seamlessly.
+
+### Tests
+`npm test` runs the relay suite (23 assertions: auth, validation, rate limit,
+password lobbies, presence, invites, matchmaking, KV, /health, host migration)
+and the client suite (lobby host-election/migration + anti-cheat, 14). A stress
+test (`npm run test:stress`) drives 40 simultaneous clients + matchmaking burst.
+
+> Runtime-verified here: relay, lobby logic, anti-cheat, bundles (iOS + web).
+> Needs external setup to run live: provider sign-in (client ids), Steamworks
+> (native), live mic audio + TURN, and physical multi-device sessions.
+
 ## Cross-Platform
 
 Spieler auf iPhone, Android, Tablet und Desktop-Browser spielen in derselben

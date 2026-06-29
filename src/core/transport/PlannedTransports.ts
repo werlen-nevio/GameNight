@@ -29,19 +29,6 @@ abstract class PlannedTransport implements Transport {
   }
 }
 
-/**
- * Peer-to-peer via WebRTC data channels. Plugs into the same relay as a
- * signaling channel (offer/answer/ICE exchange), then connects peers directly
- * with relay fallback for restrictive NATs. Needs `react-native-webrtc` on
- * native; on web it uses the built-in `RTCPeerConnection`.
- */
-export class WebRtcTransport extends PlannedTransport {
-  readonly kind = 'webrtc' as const;
-  protected reason =
-    'WebRTC-Transport ist vorbereitet: Signaling läuft über die Relay-URL, ' +
-    'auf Native wird react-native-webrtc benötigt. Aktivierbar über die Transport-Factory.';
-}
-
 /** Steam Networking / Steam Lobbies — available only in a native Steam build. */
 export class SteamTransport extends PlannedTransport {
   readonly kind = 'steam' as const;

@@ -9,7 +9,7 @@ import type { NetMessage, PeerId, Target } from '../events/protocol';
  * The reference server in `server/relay.js` implements exactly this protocol.
  */
 export type RelayClientMessage =
-  | { t: 'hello'; room: string; create: boolean }
+  | { t: 'hello'; room: string; create: boolean; password?: string; privacy?: string }
   | { t: 'relay'; to: Target; msg: NetMessage }
   | { t: 'ping'; ts: number }
   | { t: 'bye' };

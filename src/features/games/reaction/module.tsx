@@ -16,4 +16,5 @@ export const reactionModule: GameModule = {
   Gameplay: Reaction,
   defaultOptions: {},
   buildConfig: () => ({ rounds: 4, timeLimit: 0 }),
+  scoreCap: (config) => config.rounds * 100,
 };

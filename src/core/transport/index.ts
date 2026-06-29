@@ -13,7 +13,8 @@ export type {
 export { LoopbackTransport } from './LoopbackTransport';
 export { WebSocketRelayTransport } from './WebSocketRelayTransport';
 export { BroadcastChannelTransport } from './BroadcastChannelTransport';
-export { WebRtcTransport, SteamTransport } from './PlannedTransports';
+export { WebRtcTransport } from './WebRtcTransport';
+export { SteamTransport } from './PlannedTransports';
 export { GameTransportAdapter, LobbyTransportAdapter } from './adapters';
 export { NullVoiceTransport, voiceTransport } from './voice';
 export { createTransport, defaultTransportKind, resolveUrl, type TransportConfig } from './factory';

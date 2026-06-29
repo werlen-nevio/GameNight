@@ -43,4 +43,10 @@ export interface GameModule {
   defaultOptions?: Record<string, unknown>;
   /** Turns the chosen difficulty + options into a concrete match config. */
   buildConfig: (input: { difficulty: Difficulty; options: Record<string, unknown> }) => ResolvedConfig;
+  /**
+   * Maximum legitimately achievable score for a config — used by the host to
+   * reject impossible client-reported scores (anti-cheat). Omit for a sane
+   * default derived from rounds.
+   */
+  scoreCap?: (config: ResolvedConfig) => number;
 }
