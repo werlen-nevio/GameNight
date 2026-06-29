@@ -30,6 +30,7 @@ export class RelayServices {
   private url: string | null = null;
   private identity: Identity | null = null;
   private kvWaiters = new Map<string, (value: string | null) => void>();
+  private matchWaiters: { open?: (v: any) => void; result?: (v: any) => void } = {};
   private reconnectAttempt = 0;
   private manualClose = false;
 
@@ -124,6 +125,14 @@ export class RelayServices {
         }
         break;
       }
+      case 'match_open':
+        this.matchWaiters.open?.({ matchId: m.matchId, token: m.token });
+        this.matchWaiters.open = undefined;
+        break;
+      case 'match_approved':
+        this.matchWaiters.result?.({ results: m.results, signature: m.signature });
+        this.matchWaiters.result = undefined;
+        break;
     }
   }
 
@@ -146,6 +155,40 @@ export class RelayServices {
 
   kvSet(key: string, value: string): void {
     this.send({ t: 'kvset', key, value });
+  }
+
+  /** Registers a match for server-authoritative validation. */
+  matchStart(payload: { modeId: string; config?: unknown; players?: string[]; seed?: string }): Promise<{ matchId: string; token: string } | null> {
+    if (!this.connected) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this.matchWaiters.open = resolve;
+      this.send({ t: 'match_start', ...payload });
+      setTimeout(() => {
+        if (this.matchWaiters.open) {
+          this.matchWaiters.open = undefined;
+          resolve(null);
+        }
+      }, 4000);
+    });
+  }
+
+  /** Submits results; the server validates/clamps/signs them. */
+  matchResult(
+    token: string,
+    matchId: string,
+    results: unknown[],
+  ): Promise<{ results: any[]; signature: string } | null> {
+    if (!this.connected) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this.matchWaiters.result = resolve;
+      this.send({ t: 'match_result', token, matchId, results });
+      setTimeout(() => {
+        if (this.matchWaiters.result) {
+          this.matchWaiters.result = undefined;
+          resolve(null);
+        }
+      }, 4000);
+    });
   }
 
   kvGet(key: string): Promise<string | null> {

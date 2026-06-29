@@ -40,6 +40,12 @@ const VALIDATORS = {
   invite: (m) => isStr(m.to, 64) && isStr(m.lobbyCode, MAX_ROOM_LEN),
   kvset: (m) => isStr(m.key, 80) && typeof m.value === 'string' && m.value.length <= MAX_KV_BYTES,
   kvget: (m) => isStr(m.key, 80),
+  match_start: (m) =>
+    isStr(m.modeId, 60) &&
+    (m.config === undefined || (typeof m.config === 'object' && m.config !== null)) &&
+    (m.players === undefined || (Array.isArray(m.players) && m.players.length <= 32 && m.players.every((x) => isStr(x, 64)))) &&
+    isOptStr(m.seed, 80),
+  match_result: (m) => isStr(m.token, 128) && isStr(m.matchId, 64) && Array.isArray(m.results) && m.results.length <= 32,
 };
 
 /** Parses + validates a raw frame. Returns { ok, msg } or { ok:false, error }. */

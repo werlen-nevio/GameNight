@@ -2,6 +2,7 @@
 // LoopbackTransport (no React Native in this graph). Bundled with esbuild.
 import { LobbyController } from '../src/core/lobby/LobbyController';
 import { LoopbackTransport } from '../src/core/transport/LoopbackTransport';
+import { message } from '../src/core/events/protocol';
 import { sanitizeReport } from '../src/features/games/shared/antiCheat';
 
 let pass = 0,
@@ -40,6 +41,21 @@ async function run() {
   await tick(30);
   const bOnA = a.ctrl.snapshot().members.find((m) => m.persistentId === 'BBB');
   ok(bOnA?.ready === true, "Bob's ready is seen by host");
+
+  console.log('Forged authority messages from a non-host are ignored');
+  // A malicious non-host (Bob) injects raw lobby frames straight onto the wire,
+  // bypassing the LobbyController guards that would normally stop him.
+  b.net.send(message('lobby', 'kick', { persistentId: 'CCC' }, { to: 'all' }));
+  b.net.send(message('lobby', 'host', { persistentId: 'BBB' }, { to: 'all' }));
+  b.net.send(message('lobby', 'start', { modeId: 'reaction', seed: 'x', config: {} }, { to: 'all' }));
+  await tick(30);
+  ok(a.ctrl.snapshot().members.some((m) => m.persistentId === 'CCC'), 'forged kick by non-host ignored (CCC stays)');
+  ok(hostOf(a) === 'AAA' && a.ctrl.isHost, 'forged host-grab by non-host ignored (AAA stays host)');
+  ok(a.ctrl.snapshot().status === 'lobby', 'forged start by non-host ignored (still in lobby)');
+  // A player may not forge another player's ready state.
+  b.net.send(message('lobby', 'ready', { persistentId: 'CCC', ready: true }, { to: 'all' }));
+  await tick(30);
+  ok(a.ctrl.snapshot().members.find((m) => m.persistentId === 'CCC')?.ready !== true, 'forged ready for another player ignored');
 
   console.log('Manual host transfer');
   a.ctrl.transferHost('CCC');

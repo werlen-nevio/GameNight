@@ -170,36 +170,57 @@ export class LobbyController {
 
   // ---- inbound lobby messages ---------------------------------------------
 
+  /** The persistentId of the peer that sent a message (for authority checks). */
+  private senderPid(from: PeerId): string | null {
+    for (const m of this.members.values()) if (m.peerId === from) return m.persistentId;
+    return null;
+  }
+  private fromHost(from: PeerId): boolean {
+    return this.senderPid(from) === this.effectiveHost;
+  }
+
   private onLobby(type: string, data: Record<string, unknown>, from: PeerId): void {
     switch (type) {
       case 'hello':
         this.handleHello(data as unknown as HelloData, from);
         break;
       case 'ready':
-        this.applyReady(data.persistentId as string, data.ready as boolean);
+        // A player may only set their OWN ready state.
+        if (this.senderPid(from) === (data.persistentId as string)) {
+          this.applyReady(data.persistentId as string, data.ready as boolean);
+        }
         break;
+      // kick / host-transfer / start are authoritative — only the host may issue them.
       case 'kick':
-        this.handleKick(data.persistentId as string);
+        if (this.fromHost(from)) this.handleKick(data.persistentId as string);
         break;
       case 'host':
-        this.hostOverride = data.persistentId as string;
-        this.emitChange();
+        if (this.fromHost(from)) {
+          this.hostOverride = data.persistentId as string;
+          this.emitChange();
+        }
         break;
       case 'start':
-        this.handleStart(data as unknown as StartPayload);
+        if (this.fromHost(from)) this.handleStart(data as unknown as StartPayload);
         break;
       case 'chat':
         this.handleChat(data as unknown as ChatMessage);
         break;
       case 'emote':
-        this.events.emit('emote', {
-          persistentId: data.persistentId as string,
-          emoteId: data.emoteId as string,
-          at: (data.at as number) ?? Date.now(),
-        });
+        // A player may only emote as themselves.
+        if (this.senderPid(from) === (data.persistentId as string)) {
+          this.events.emit('emote', {
+            persistentId: data.persistentId as string,
+            emoteId: data.emoteId as string,
+            at: (data.at as number) ?? Date.now(),
+          });
+        }
         break;
       case 'leave':
-        this.removeMember(data.persistentId as string);
+        // Self-leave, or an authoritative removal broadcast by the host.
+        if (this.senderPid(from) === (data.persistentId as string) || this.fromHost(from)) {
+          this.removeMember(data.persistentId as string);
+        }
         break;
     }
   }

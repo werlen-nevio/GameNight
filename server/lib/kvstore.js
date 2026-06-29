@@ -8,6 +8,7 @@
  * authenticated persistentId so players can only touch their own data.
  */
 const fs = require('fs');
+const { encrypt, decrypt } = require('./crypto');
 
 class KvStore {
   constructor(opts = {}) {
@@ -28,11 +29,13 @@ class KvStore {
   }
 
   get(namespace, key) {
-    return this.map.get(this.key(namespace, key)) ?? null;
+    const stored = this.map.get(this.key(namespace, key));
+    return stored == null ? null : decrypt(stored);
   }
 
   set(namespace, key, value) {
-    this.map.set(this.key(namespace, key), value);
+    // Values are encrypted at rest (AES-256-GCM).
+    this.map.set(this.key(namespace, key), encrypt(value));
     this.persist();
   }
 

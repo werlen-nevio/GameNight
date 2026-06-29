@@ -26,6 +26,7 @@ const { RateLimiter, Cooldowns } = require('./lib/ratelimit');
 const { Rooms } = require('./lib/rooms');
 const { Presence } = require('./lib/presence');
 const { Matchmaker } = require('./lib/matchmaking');
+const { Matches } = require('./lib/matches');
 const { KvStore } = require('./lib/kvstore');
 const auth = require('./lib/auth');
 
@@ -49,6 +50,7 @@ function createRelayServer(options = {}) {
   const rooms = new Rooms();
   const presence = new Presence();
   const matchmaker = new Matchmaker();
+  const matches = new Matches();
   const kv = new KvStore({ file: options.kvFile || process.env.KV_FILE || null });
 
   const server = http.createServer((req, res) => {
@@ -207,6 +209,21 @@ function createRelayServer(options = {}) {
         kv.set(ws.account, m.key, m.value);
         send(ws, { t: 'kvok', key: m.key });
         break;
+      case 'match_start': {
+        if (!ws.account) return send(ws, { t: 'error', reason: 'auth_required', code: 401 });
+        const { matchId, token } = matches.start(ws.account, m);
+        send(ws, { t: 'match_open', matchId, token });
+        break;
+      }
+      case 'match_result': {
+        const res = matches.submit(m.token, m.matchId, m.results);
+        if (!res.ok) {
+          send(ws, { t: 'error', reason: res.error, code: 400 });
+          break;
+        }
+        send(ws, { t: 'match_approved', matchId: res.matchId, results: res.results, signature: res.signature });
+        break;
+      }
       case 'bye':
         ws.close();
         break;
@@ -242,6 +259,8 @@ function createRelayServer(options = {}) {
     rooms,
     presence,
     matchmaker,
+    matches,
+    kv,
     close() {
       clearInterval(heartbeat);
       clearInterval(sweeper);

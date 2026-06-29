@@ -16,6 +16,7 @@ import { CountdownIntro } from '../games/shared/CountdownIntro';
 import { ResultsScreen } from '../games/shared/ResultsScreen';
 import { sanitizeReport } from '../games/shared/antiCheat';
 import { getModule } from '../games/registry';
+import { relayServices } from '../../core/network/sharedRelay';
 import { usePlayerStore, type MatchSummary } from '../../state';
 import { useOnlineStore } from '../../state/onlineStore';
 
@@ -62,11 +63,21 @@ export function OnlineGameScreen() {
   const myReport = useRef<FinishedReport | null>(null);
   const reports = useRef<Map<string, FinishedReport>>(new Map());
   const expected = useRef<string[]>([]);
+  const matchAuth = useRef<{ matchId: string; token: string } | null>(null);
+  const finalized = useRef(false);
 
   // Snapshot of who is expected to finish (connected at kickoff).
   useEffect(() => {
     if (lobby) expected.current = lobby.members.filter((m) => m.connected).map((m) => m.persistentId);
     if (startPayload) sync?.beginMatch(startPayload.seed);
+    // Host registers the match with the server for authoritative reward approval.
+    if (sync?.isHost && startPayload && relayServices.connected) {
+      void relayServices
+        .matchStart({ modeId: startPayload.modeId, config: startPayload.config, players: expected.current, seed: startPayload.seed })
+        .then((r) => {
+          matchAuth.current = r;
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -133,15 +144,32 @@ export function OnlineGameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  function finalize() {
-    if (!sync?.isHost || !controller) return;
+  async function finalize() {
+    if (!sync?.isHost || !controller || finalized.current) return;
+    finalized.current = true;
     const members = controller.snapshot().members;
+
+    // Server-authoritative reward approval when a relay is available; the server
+    // validates/clamps every score. Falls back to host-local anti-cheat offline.
+    const serverScores = new Map<string, number>();
+    if (matchAuth.current && relayServices.connected) {
+      const submission = members.map((m) => ({
+        persistentId: m.persistentId,
+        score: reports.current.get(m.persistentId)?.score ?? 0,
+        correctAnswers: reports.current.get(m.persistentId)?.correctAnswers ?? 0,
+        perfect: reports.current.get(m.persistentId)?.perfect ?? false,
+      }));
+      const approved = await relayServices.matchResult(matchAuth.current.token, matchAuth.current.matchId, submission);
+      if (approved) for (const r of approved.results) serverScores.set(r.persistentId, r.score);
+      matchAuth.current = null;
+    }
+
     const rows: ResultRow[] = members.map((m, i) => ({
       persistentId: m.persistentId,
       name: m.name,
       emoji: m.avatarEmoji,
       color: m.color || PLAYER_COLORS[i % PLAYER_COLORS.length],
-      score: reports.current.get(m.persistentId)?.score ?? 0,
+      score: serverScores.has(m.persistentId) ? serverScores.get(m.persistentId)! : reports.current.get(m.persistentId)?.score ?? 0,
     }));
     rows.sort((a, b) => b.score - a.score);
     sync.emit('MatchResults', { results: rows });
