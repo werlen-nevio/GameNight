@@ -5,6 +5,7 @@ import type { LobbyState, StartPayload } from '../core/lobby/types';
 import { NetworkClient } from '../core/network/NetworkClient';
 import { SyncEngine } from '../core/sync/SyncEngine';
 import { defaultTransportKind, type TransportConfig } from '../core/transport/factory';
+import { relayServices } from '../core/network/sharedRelay';
 import type { TransportKind } from '../core/transport/types';
 import { runtimePlatform } from '../core/platform/platform';
 import { createLobbyCode } from '../core/utils/id';
@@ -26,6 +27,10 @@ interface OnlineState {
 
   host: (config?: TransportConfig) => Promise<string>;
   join: (code: string, config?: TransportConfig) => Promise<void>;
+  /** Enter a specific code (create=true hosts/creates, false joins). */
+  connect: (code: string, create: boolean, config?: TransportConfig) => Promise<void>;
+  /** Enter the matchmaking queue (public/quick/ranked) via the relay. */
+  quickPlay: (qtype: string, modeId?: string) => void;
   leave: () => void;
   returnToLobby: () => void;
   reset: () => void;
@@ -95,6 +100,12 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     join: async (code, config) => {
       await enter(code.toUpperCase(), false, config);
     },
+
+    connect: async (code, create, config) => {
+      await enter(code.toUpperCase(), create, config);
+    },
+
+    quickPlay: (qtype, modeId) => relayServices.enqueue(qtype, modeId),
 
     leave: () => {
       get().controller?.leave();

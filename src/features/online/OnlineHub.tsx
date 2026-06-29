@@ -17,6 +17,7 @@ import {
 import { Feedback } from '../../core/services';
 import { hasRelay } from '../../core/transport/config';
 import { useOnlineStore } from '../../state/onlineStore';
+import { toast } from '../../state/toastStore';
 
 const TRANSPORT_LABEL: Record<string, string> = {
   websocket: 'Relay-Server',
@@ -25,15 +26,18 @@ const TRANSPORT_LABEL: Record<string, string> = {
 };
 
 /** Create or join an online lobby. */
-export function OnlineHub({ initialCode }: { initialCode?: string }) {
+export function OnlineHub({ initialCode, initialCreate }: { initialCode?: string; initialCreate?: boolean }) {
   const router = useRouter();
   const theme = useTheme();
   const host = useOnlineStore((s) => s.host);
   const join = useOnlineStore((s) => s.join);
+  const connect = useOnlineStore((s) => s.connect);
+  const quickPlay = useOnlineStore((s) => s.quickPlay);
   const status = useOnlineStore((s) => s.status);
   const transportKind = useOnlineStore((s) => s.transportKind);
   const [code, setCode] = useState(initialCode ?? '');
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
   const autoJoined = useRef(false);
 
   const doJoin = async (c: string) => {
@@ -48,14 +52,25 @@ export function OnlineHub({ initialCode }: { initialCode?: string }) {
     }
   };
 
-  // Auto-join when arriving via an invite link.
+  // Auto-enter when arriving via an invite link or a matchmaking result.
   useEffect(() => {
     if (initialCode && !autoJoined.current) {
       autoJoined.current = true;
-      void doJoin(initialCode);
+      if (initialCreate) void connect(initialCode, true);
+      else void doJoin(initialCode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCode]);
+
+  const startQuickPlay = () => {
+    if (!hasRelay) {
+      toast.info('Schnelles Spiel', 'Benötigt einen Relay-Server (EXPO_PUBLIC_RELAY_URL).');
+      return;
+    }
+    Feedback.press();
+    setSearching(true);
+    quickPlay('quick');
+  };
 
   const doHost = async () => {
     if (busy) return;
@@ -88,6 +103,15 @@ export function OnlineHub({ initialCode }: { initialCode?: string }) {
           loading={busy && status === 'connecting'}
           leftIcon={<Icon name="add-circle" size={22} color="onPrimary" />}
           onPress={doHost}
+        />
+
+        <GameButton
+          label={searching ? 'Suche Gegner …' : 'Schnelles Spiel'}
+          variant="success"
+          size="md"
+          loading={searching}
+          leftIcon={<Icon name="flash" size={20} color="onColor" />}
+          onPress={startQuickPlay}
         />
 
         <Divider label="oder" />

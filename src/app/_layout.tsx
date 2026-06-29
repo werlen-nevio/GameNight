@@ -14,6 +14,8 @@ import { Audio } from '../core/services';
 import { THEME_BY_ID } from '../domain';
 import { usePlayerStore, useSettingsStore } from '../state';
 import { useAccountStore } from '../state/accountStore';
+import { ToastHost } from '../features/shared/ToastHost';
+import { OnlineNotifications } from '../features/online/OnlineNotifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -69,6 +71,8 @@ export default function RootLayout() {
             <Stack.Screen name="settings" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="achievements" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
+          <OnlineNotifications />
+          <ToastHost />
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

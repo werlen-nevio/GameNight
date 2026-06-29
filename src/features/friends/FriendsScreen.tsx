@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Share, TextInput, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { radii, spacing } from '../../core/design/tokens';
@@ -11,35 +11,70 @@ import {
   GameButton,
   Icon,
   ModalHeader,
+  PressableScale,
   Screen,
   SectionHeader,
-  Tag,
 } from '../../core/ui';
 import { Feedback } from '../../core/services';
 import { t } from '../../core/i18n';
-import { createLobbyCode } from '../../core/utils/id';
-import { EMOTE_BY_ID } from '../../domain';
-import { usePlayerStore } from '../../state';
+import type { Friend, FriendState } from '../../core/social/types';
+import { useFriendsStore } from '../../state/friendsStore';
+import { useOnlineStore } from '../../state/onlineStore';
+import { toast } from '../../state/toastStore';
 
-/**
- * The Online & Friends hub: create/share a private lobby code, prepare to join,
- * preview your emote loadout. Live sync & voice are scaffolded for a future
- * networked update — surfaced honestly rather than faked.
- */
+const STATE_COLOR: Record<FriendState, string> = {
+  online: '#2BD576',
+  in_lobby: '#22E0D6',
+  playing: '#FF8A3D',
+  offline: '#6A6388',
+};
+const STATE_LABEL: Record<FriendState, string> = {
+  online: 'Online',
+  in_lobby: 'In Lobby',
+  playing: 'Im Spiel',
+  offline: 'Offline',
+};
+
 export function FriendsScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const player = usePlayerStore((s) => s.player);
-  const [code] = useState(() => createLobbyCode());
-  const [joinCode, setJoinCode] = useState('');
+  const friends = useFriendsStore((s) => s.friends);
+  const recent = useFriendsStore((s) => s.recent);
+  const load = useFriendsStore((s) => s.load);
+  const add = useFriendsStore((s) => s.add);
+  const remove = useFriendsStore((s) => s.remove);
+  const toggleFavorite = useFriendsStore((s) => s.toggleFavorite);
+  const invite = useFriendsStore((s) => s.invite);
+  const lobby = useOnlineStore((s) => s.lobby);
+  const [codeInput, setCodeInput] = useState('');
 
-  const share = async () => {
-    Feedback.tap();
-    try {
-      await Share.share({ message: `Spiel mit mir GameNight! Lobby-Code: ${code}` });
-    } catch {
-      /* user dismissed */
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const sorted = [...friends].sort((a, b) => {
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    const onA = a.state !== 'offline' ? 0 : 1;
+    const onB = b.state !== 'offline' ? 0 : 1;
+    return onA - onB;
+  });
+
+  const onInvite = (f: Friend) => {
+    if (!lobby) {
+      toast.info('Keine Lobby', 'Erstelle zuerst eine Online-Lobby, um einzuladen.');
+      return;
     }
+    invite(f.id, lobby.code);
+    Feedback.success();
+    toast.success('Eingeladen', `${f.name} wurde eingeladen`);
+  };
+
+  const addByCode = async () => {
+    const id = codeInput.trim();
+    if (id.length < 4) return;
+    await add({ id, name: 'Freund', avatarEmoji: '🙂' });
+    setCodeInput('');
+    Feedback.success();
   };
 
   return (
@@ -53,113 +88,110 @@ export function FriendsScreen() {
           onPress={() => router.push('/online')}
         />
 
-        {/* Private lobby */}
-        <View>
-          <SectionHeader title={t.online.privateLobby} subtitle="Teile den Code mit Freunden" />
-          <Card style={{ alignItems: 'center', gap: spacing.md }}>
-            <AppText variant="label" color="textFaint" uppercase>
-              {t.online.lobbyCode}
-            </AppText>
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              {code.split('').map((c, i) => (
-                <View
-                  key={i}
-                  style={{
-                    width: 40,
-                    height: 52,
-                    borderRadius: radii.md,
-                    backgroundColor: theme.colors.surfaceAlt,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <AppText variant="heading" color="primaryBright">
-                    {c}
-                  </AppText>
-                </View>
-              ))}
-            </View>
-            <GameButton
-              label={t.online.invite}
-              variant="primary"
-              size="md"
-              leftIcon={<Icon name="share-social" size={20} color="onPrimary" />}
-              onPress={share}
-            />
-          </Card>
-        </View>
-
-        {/* Join */}
-        <View>
-          <SectionHeader title={t.online.joinLobby} />
-          <Card style={{ gap: spacing.md }}>
+        {/* Add friend */}
+        <Card style={{ gap: spacing.md }}>
+          <SectionHeader title="Freund hinzufügen" subtitle="Per Freundescode" />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <TextInput
-              value={joinCode}
-              onChangeText={(v) => setJoinCode(v.toUpperCase().slice(0, 6))}
-              placeholder={t.online.enterCode}
+              value={codeInput}
+              onChangeText={setCodeInput}
+              placeholder="Code / ID"
               placeholderTextColor={theme.colors.textFaint}
-              autoCapitalize="characters"
+              autoCapitalize="none"
               style={{
+                flex: 1,
                 color: theme.colors.text,
-                fontFamily: 'Baloo2_700Bold',
-                fontSize: 22,
-                letterSpacing: 6,
-                textAlign: 'center',
+                fontFamily: 'Nunito_600SemiBold',
+                fontSize: 15,
                 backgroundColor: 'rgba(0,0,0,0.25)',
                 borderRadius: radii.md,
-                paddingVertical: spacing.md,
+                paddingHorizontal: spacing.md,
               }}
             />
-            <GameButton
-              label={t.online.joinLobby}
-              variant="secondary"
-              size="md"
-              disabled={joinCode.length < 6}
-              onPress={() => Feedback.tap()}
-            />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, justifyContent: 'center' }}>
-              <Icon name="information-circle" size={14} color="textFaint" />
-              <AppText variant="caption" color="textFaint">
-                Live-Multiplayer & {t.online.voiceSoon}
-              </AppText>
-            </View>
-          </Card>
-        </View>
-
-        {/* Emote loadout */}
-        <View>
-          <SectionHeader title={t.online.emotes} subtitle="Deine Emotes für Online-Partien" />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            {player.inventory.emotes.map((id) => {
-              const e = EMOTE_BY_ID[id];
-              if (!e) return null;
-              return (
-                <Card key={id} padding="sm" radius="lg" alt style={{ alignItems: 'center', width: 70, gap: 2 }}>
-                  <AppText style={{ fontSize: 26 }}>{e.emoji}</AppText>
-                  <AppText variant="label" color="textFaint" numberOfLines={1}>
-                    {e.label}
-                  </AppText>
-                </Card>
-              );
-            })}
+            <PressableScale
+              feedback="press"
+              onPress={addByCode}
+              style={{ width: 46, height: 46, borderRadius: radii.md, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="person-add" size={20} color="onPrimary" />
+            </PressableScale>
           </View>
-        </View>
-
-        {/* You */}
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <Avatar emoji="🎙️" size={44} />
-          <View style={{ flex: 1 }}>
-            <AppText variant="subheading" color="text">
-              Voice-Chat
-            </AppText>
-            <AppText variant="caption" color="textFaint">
-              Vorbereitet für ein kommendes Update
-            </AppText>
-          </View>
-          <Tag label="BALD" tone="soon" />
         </Card>
+
+        {/* Friends list */}
+        <View>
+          <SectionHeader title="Freunde" subtitle={`${friends.filter((f) => f.state !== 'offline').length} online`} />
+          {sorted.length === 0 ? (
+            <Card style={{ alignItems: 'center', gap: spacing.xs }}>
+              <AppText style={{ fontSize: 32 }}>👋</AppText>
+              <AppText variant="caption" color="textFaint" align="center">
+                Noch keine Freunde – füge welche per Code hinzu.
+              </AppText>
+            </Card>
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {sorted.map((f) => (
+                <Card key={f.id} padding="md" style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <View>
+                    <Avatar emoji={f.avatarEmoji} size={40} />
+                    <View
+                      style={{
+                        position: 'absolute',
+                        bottom: -1,
+                        right: -1,
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        backgroundColor: STATE_COLOR[f.state],
+                        borderWidth: 2,
+                        borderColor: theme.colors.surface,
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="bodyStrong" color="text" numberOfLines={1}>
+                      {f.name}
+                    </AppText>
+                    <AppText variant="label" style={{ color: STATE_COLOR[f.state] }}>
+                      {STATE_LABEL[f.state]}
+                    </AppText>
+                  </View>
+                  <PressableScale feedback="tap" onPress={() => toggleFavorite(f.id)} hitSlop={8}>
+                    <Icon name={f.favorite ? 'star' : 'star-outline'} size={20} color={f.favorite ? 'coin' : 'textFaint'} />
+                  </PressableScale>
+                  {f.state !== 'offline' && (
+                    <PressableScale feedback="press" onPress={() => onInvite(f)} hitSlop={8}>
+                      <Icon name="paper-plane" size={20} color="primaryBright" />
+                    </PressableScale>
+                  )}
+                  <PressableScale feedback="tap" onPress={() => remove(f.id)} hitSlop={8}>
+                    <Icon name="close" size={18} color="textFaint" />
+                  </PressableScale>
+                </Card>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Recently played */}
+        {recent.length > 0 && (
+          <View>
+            <SectionHeader title="Zuletzt gespielt" />
+            <View style={{ gap: spacing.sm }}>
+              {recent.map((r) => (
+                <Card key={r.id} padding="md" style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Avatar emoji={r.avatarEmoji} size={34} />
+                  <AppText variant="body" color="text" style={{ flex: 1 }} numberOfLines={1}>
+                    {r.name}
+                  </AppText>
+                  <PressableScale feedback="press" onPress={() => add({ id: r.id, name: r.name, avatarEmoji: r.avatarEmoji })} hitSlop={8}>
+                    <Icon name="person-add" size={20} color="primaryBright" />
+                  </PressableScale>
+                </Card>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
