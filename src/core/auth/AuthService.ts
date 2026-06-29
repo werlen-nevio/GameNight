@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { Storage } from '../services/storage/storage';
 import { RELAY_URL } from '../transport/config';
 import { relayServices } from '../network/sharedRelay';
+import { steam } from '../steam';
 
 /**
  * Account identity & sign-in. Guest and Anonymous are fully implemented and work
@@ -59,9 +60,28 @@ export class AuthService {
     return this.provider('apple', 'expo-apple-authentication');
   }
 
-  /** Steam sign-in (desktop Steam build via Steamworks). */
+  /**
+   * Steam sign-in (desktop Steam build). Uses the live Steam identity
+   * (SteamID + persona) and a session ticket so the relay can validate the
+   * player server-side. Falls back to a clear error off-Steam.
+   */
   async signInWithSteam(): Promise<AuthIdentity> {
-    return this.provider('steam', 'steamworks');
+    if (!steam.available) {
+      // Lazily initialise in case the host app hasn't yet.
+      const ok = await steam.init().catch(() => false);
+      if (!ok) throw new Error('steam_not_configured');
+    }
+    const user = steam.auth.user();
+    if (!user) throw new Error('steam_not_configured');
+    const ticket = await steam.auth.sessionTicket().catch(() => undefined);
+    const identity = await this.establish({
+      persistentId: `steam:${user.steamId}`,
+      name: user.persona,
+      provider: 'steam',
+      token: ticket,
+      externalId: user.steamId,
+    });
+    return identity;
   }
 
   /** Links the current account to a provider while keeping the persistent id. */

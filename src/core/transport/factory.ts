@@ -1,11 +1,15 @@
 import { isWeb } from '../platform/platform';
+import { steam } from '../steam';
 import { BroadcastChannelTransport } from './BroadcastChannelTransport';
 import { LoopbackTransport } from './LoopbackTransport';
 import { WebSocketRelayTransport } from './WebSocketRelayTransport';
 import { WebRtcTransport } from './WebRtcTransport';
-import { SteamTransport } from './PlannedTransports';
+import { SteamNetworkingTransport } from './SteamNetworkingTransport';
+import { chooseTransportKind } from './transportPolicy';
 import { RELAY_URL } from './config';
 import type { Transport, TransportKind } from './types';
+
+export { chooseTransportKind };
 
 export interface TransportConfig {
   kind?: TransportKind;
@@ -22,9 +26,12 @@ export interface TransportConfig {
  *  - **loopback** otherwise (single runtime / tests).
  */
 export function defaultTransportKind(): TransportKind {
-  if (RELAY_URL) return 'websocket';
-  if (isWeb && BroadcastChannelTransport.supported) return 'broadcast';
-  return 'loopback';
+  return chooseTransportKind({
+    steamAvailable: steam.networking.available,
+    relayUrl: RELAY_URL,
+    web: isWeb,
+    broadcastSupported: BroadcastChannelTransport.supported,
+  });
 }
 
 /** Resolves the endpoint URL a networked transport should dial. */
@@ -49,7 +56,7 @@ export function createTransport(config?: TransportConfig): Transport {
     case 'webrtc':
       return new WebRtcTransport();
     case 'steam':
-      return new SteamTransport();
+      return steam.networking.available ? new SteamNetworkingTransport() : new WebRtcTransport();
     case 'loopback':
     default:
       return new LoopbackTransport({ latencyMs: config?.latencyMs });

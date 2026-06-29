@@ -1,12 +1,30 @@
-export { steam } from './SteamIntegration';
+export { steam, NullSteamIntegration } from './SteamIntegration';
+export {
+  STEAM_ACHIEVEMENT_API,
+  STEAM_STAT,
+  CLOUD_SAVE_FILE,
+  steamStatsFromPlayer,
+  syncSteamProgress,
+  resolveCloudConflict,
+  pushCloudSave,
+  pullCloudSave,
+  setSteamLobbyPresence,
+  type SteamSyncResult,
+} from './SteamSync';
 export type {
   SteamIntegration,
+  SteamUser,
+  SteamAuthApi,
   SteamFriend,
   SteamLobbies,
+  SteamNetworking,
   SteamFriendsApi,
   SteamInvites,
   SteamRichPresence,
   SteamOverlay,
   SteamVoice,
-  SteamNetworking,
+  SteamAchievementsApi,
+  SteamStatsApi,
+  SteamCloudApi,
+  SteamCloudFile,
 } from './types';

@@ -60,8 +60,9 @@
     "test:relay": "node server/relay.test.mjs",
     "test:security": "node server/security.test.mjs",
     "test:lobby": "esbuild tests/lobby.test.ts --bundle --format=esm --platform=node --outfile=.tmp-test.mjs && node .tmp-test.mjs",
+    "test:steam": "esbuild tests/steam.test.ts --bundle --format=esm --platform=node --outfile=.tmp-steam.mjs && node .tmp-steam.mjs",
     "test:stress": "node server/stress.test.mjs",
-    "test": "npm run test:relay && npm run test:security && npm run test:lobby"
+    "test": "npm run test:relay && npm run test:security && npm run test:lobby && npm run test:steam"
   },
   "private": true
 }

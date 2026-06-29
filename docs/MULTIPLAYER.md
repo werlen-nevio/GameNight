@@ -30,14 +30,20 @@ weiß, *wie* Bytes übertragen werden.
 | `LoopbackTransport` | ✅ | In-Process; Tests & Single-Runtime-Demos |
 | `WebSocketRelayTransport` | ✅ | Echtes Netzwerk über Relay-URL (Web + Native) |
 | `BroadcastChannelTransport` | ✅ | Server-los über Browser-Tabs (Desktop) |
-| `WebRtcTransport` | 🔌 vorbereitet | P2P + Relay-Fallback (Signaling über Relay) |
-| `SteamTransport` | 🔌 vorbereitet | Steam Networking / Lobbies (nativer Build) |
+| `WebRtcTransport` | ✅ | P2P + Relay-Fallback (Signaling über Relay) |
+| `SteamNetworkingTransport` | ✅ | Steam P2P / Lobbies (nativer Steam-Build) |
 
 Der Transport wird an **einer** Stelle erzeugt – `createTransport()` in
-`core/transport/factory.ts`. Standard:
-- `WebSocketRelayTransport`, wenn `EXPO_PUBLIC_RELAY_URL` gesetzt ist,
+`core/transport/factory.ts`; die Auswahl steckt in der reinen Funktion
+`chooseTransportKind()` (`transportPolicy.ts`, eigenständig getestet). Reihenfolge:
+- `SteamNetworkingTransport`, wenn ein Steam-Build läuft (`steam.networking.available`),
+- sonst `WebSocketRelayTransport`, wenn `EXPO_PUBLIC_RELAY_URL` gesetzt ist,
 - sonst `BroadcastChannelTransport` im Browser,
 - sonst `LoopbackTransport`.
+
+Gameplay ist **transportunabhängig**: dieselben `NetMessage`-Frames laufen über
+jeden Transport, daher ändert sich beim Wechsel auf Steam nichts an Lobby, Sync
+oder Spielmodi.
 
 ## Host-Autorität & Determinismus
 
@@ -122,6 +128,31 @@ lifecycle with **password + privacy**, **presence + friend invites**,
 /metrics**. Stateless tokens + per-node metrics ⇒ horizontally scalable (swap
 rooms/presence/kv for Redis to share state across nodes).
 
+### Security hardening (treat every client as malicious)
+- **Lobby codes:** every lobby has an internal **128-bit id that is never sent to
+  the client**; players only see a short, server-generated, high-entropy share
+  code (`rooms.js`) mapped server-side. Codes **expire** (TTL + sweeper) and the
+  host can **rotate** them; the old code dies instantly. Enumeration is infeasible.
+- **Auth tokens** (`auth.js`): HMAC-SHA256, JWT-shaped, with `jti` **revocation**,
+  **device binding** (`did`), short-lived **access** + long-lived **refresh**
+  tokens, expiry and constant-time signature checks. The relay never trusts a
+  client-supplied id.
+- **Message validation** (`protocol.js`): schema + size caps per type; a
+  monotonic per-connection **`seq` rejects replays/dups**, and inner-message
+  timestamps must be within a sane window (**no replay / impossible timestamps**).
+- **Rate limiting** (`ratelimit.js`): global token bucket **plus** per-type
+  cooldowns (chat/emote/invite/join/voice) with automatic **temp mute** and
+  disconnect of abusers.
+- **Server-authoritative anti-cheat** (`matches.js`): the host registers a match;
+  the server **validates, clamps and HMAC-signs** every result against per-mode
+  caps + roster, denies `perfect` to untrusted entries, and consumes each match
+  once (**reward/replay-safe**). Clients apply only server-approved scores.
+- **Encryption at rest** (`crypto.js`): cloud saves are **AES-256-GCM** encrypted
+  in the KV store (tamper ⇒ rejected); TLS protects transit.
+- **Client authority:** `LobbyController` only honours kick / host-transfer /
+  start **from the host**, and ready/emote only **from the player themselves** —
+  forged frames are dropped.
+
 ### Friends, presence & matchmaking
 Local roster + **live presence** (online / in-lobby / playing), add-by-code,
 favorites, block, **invite-to-lobby** (one-tap-join toast), recently-played, and
@@ -130,19 +161,35 @@ resolve to codes.
 
 ### Auth & cloud save
 **Guest/Anonymous** fully implemented (persistent id + relay session token);
-**Google/Apple/Steam** provider adapters wired to the same flow (activate with
-credentials / native build). **Cloud save** syncs profile + settings via the
-relay KV (last-write-wins; swappable for Firestore/Supabase/Redis).
+**Steam** uses the live SteamID + persona + session ticket (server-validatable);
+**Google/Apple** provider adapters wired to the same flow (activate with
+credentials). **Cloud save** syncs profile + settings via the relay KV
+(encrypted at rest) and, on Steam, via **Steam Cloud** with conflict resolution.
 
-### Anti-cheat
-The host never trusts a client: self-reported scores are **clamped to the
-legitimately achievable range** per match config (`scoreCap` per mode);
-NaN/negative/impossible values are rejected. Host stays authoritative.
+### Steam ecosystem (`core/steam`)
+A complete, production-shaped Steamworks integration behind one
+`SteamIntegration` interface, with a **null adapter** so every platform calls
+Steam unconditionally (no-ops off-Steam) and a real **`SteamworksAdapter`**
+(`steamworks.js`, resolved dynamically so the mobile/web bundle never depends on
+it):
 
-### Steam (`core/steam`)
-Complete interface set — Lobbies, Networking, Friends, Invites, Rich Presence,
-Overlay, Voice — with a null adapter; a desktop Steamworks build binds the same
-surface, so the desktop version uses Steam seamlessly when available.
+- **Auth:** SteamID, persona, avatar, **session ticket** for server-side validation.
+- **Networking:** `SteamNetworkingTransport` over Steam P2P/lobbies — auto-selected
+  by `chooseTransportKind()` when available, otherwise WebRTC/relay. Gameplay
+  transport-independent.
+- **Friends / Invites / Overlay:** friend list + state, invite + accept + join,
+  overlay invite dialog / profile / web page / screenshots.
+- **Rich Presence:** lobby status + `connect` string so friends join from the
+  overlay; updated live as the lobby changes (`onlineStore`).
+- **Achievements:** the 12 app achievements map to `ACH_*` Steam names and
+  auto-unlock + show progress toasts, idempotently (`SteamSync`).
+- **Stats:** games / wins / correct / perfect / streak / modes / coins / XP / level
+  mirrored to Steam stats.
+- **Steam Cloud:** profile saved/loaded with **conflict resolution** (favours the
+  most-progressed profile).
+
+`SteamSync` (the pure mapping) and the null adapter are unit-tested
+(`tests/steam.test.ts`, 25 assertions) without a Steam runtime.
 
 ### Error handling
 2-minute reconnection (exponential backoff) keeps the slot; a global **reconnect
@@ -150,14 +197,25 @@ overlay** covers dropped network / backgrounding / relay restart while the
 game/lobby underneath resumes seamlessly.
 
 ### Tests
-`npm test` runs the relay suite (23 assertions: auth, validation, rate limit,
-password lobbies, presence, invites, matchmaking, KV, /health, host migration)
-and the client suite (lobby host-election/migration + anti-cheat, 14). A stress
-test (`npm run test:stress`) drives 40 simultaneous clients + matchmaking burst.
+`npm test` runs four suites (**113 assertions**):
+- **relay** (`test:relay`, 24): auth, validation, rate limit, password lobbies,
+  presence, invites, matchmaking, KV, /health, host migration.
+- **security** (`test:security`, 46): adversarial — replay attacks, packet
+  injection, invalid signatures, spam/temp-mute, **lobby enumeration**, token
+  expiry/revocation/device-binding, rotate (host-migration) exploits, reward
+  exploits, fake scores, encryption at rest.
+- **lobby** (`test:lobby`, 18): host election/migration, reconnection, anti-cheat
+  and **forged-authority** exploit coverage.
+- **steam** (`test:steam`, 25): null adapter surface, achievement/stat sync
+  (idempotent), Steam Cloud conflict resolution + round-trip, transport selection.
 
-> Runtime-verified here: relay, lobby logic, anti-cheat, bundles (iOS + web).
-> Needs external setup to run live: provider sign-in (client ids), Steamworks
-> (native), live mic audio + TURN, and physical multi-device sessions.
+A stress test (`npm run test:stress`) drives 40 simultaneous clients +
+matchmaking burst.
+
+> Runtime-verified here: relay, security, lobby logic, anti-cheat, Steam sync,
+> bundles (iOS + web). Needs external setup to run live: provider sign-in (client
+> ids), a Steamworks app id + the `steamworks.js` native module, live mic audio +
+> TURN, and physical multi-device sessions.
 
 ## Cross-Platform
 

@@ -9,6 +9,7 @@ import { relayServices } from '../core/network/sharedRelay';
 import type { TransportKind } from '../core/transport/types';
 import { runtimePlatform } from '../core/platform/platform';
 import { createLobbyCode } from '../core/utils/id';
+import { steam, setSteamLobbyPresence } from '../core/steam';
 import { AVATAR_BY_ID } from '../domain';
 import { usePlayerStore } from './playerStore';
 
@@ -66,7 +67,17 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     const controller = new LobbyController(net, selfIdentity());
     const sync = new SyncEngine(net, () => controller.hostPeerId);
 
-    controller.events.on('change', (lobby) => set({ lobby }));
+    controller.events.on('change', (lobby) => {
+      set({ lobby });
+      // Steam rich presence so friends see "In a lobby (3/8)" + can join via overlay.
+      const connected = lobby.members.filter((m) => m.connected).length;
+      setSteamLobbyPresence(steam, {
+        status: lobby.status === 'in_game' ? 'Im Spiel' : 'In einer Lobby',
+        code: lobby.code,
+        players: connected,
+        max: lobby.maxPlayers,
+      });
+    });
     controller.events.on('error', ({ message }) => set({ error: message, status: 'error' }));
     controller.events.on('kicked', () => set({ status: 'closed', error: 'Du wurdest entfernt' }));
     controller.events.on('started', (payload) => set({ startPayload: payload }));
@@ -135,6 +146,8 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
         clearInterval(rttTimer);
         rttTimer = null;
       }
+      // Back to the main-menu presence once we leave the lobby.
+      if (steam.available) setSteamLobbyPresence(steam, { status: 'Im Hauptmenü' });
       set({ controller: null, sync: null, net: null, lobby: null, status: 'idle', error: null, startPayload: null });
     },
   };

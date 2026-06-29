@@ -44,3 +44,4 @@ example
 
 # Test artifacts
 .tmp-test.mjs
+.tmp-steam.mjs

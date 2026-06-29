@@ -5,6 +5,14 @@ import { cloudSaveService, type SaveBlob } from '../core/cloud/CloudSaveService'
 import { relayServices } from '../core/network/sharedRelay';
 import { Storage } from '../core/services/storage/storage';
 import { RELAY_URL } from '../core/transport/config';
+import {
+  steam,
+  pullCloudSave,
+  pushCloudSave,
+  resolveCloudConflict,
+  setSteamLobbyPresence,
+  syncSteamProgress,
+} from '../core/steam';
 import { usePlayerStore } from './playerStore';
 import { useSettingsStore } from './settingsStore';
 
@@ -52,6 +60,39 @@ function applySettings(s: SaveBlob['settings']) {
 export const useAccountStore = create<AccountState>((set, get) => {
   let pushTimer: ReturnType<typeof setTimeout> | null = null;
   let subscribed = false;
+  let steamSubscribed = false;
+
+  /**
+   * Initialises the Steam ecosystem when running inside a Steam build:
+   * reconciles the Steam Cloud profile (conflict-resolved toward most progress),
+   * pushes achievements + stats, and keeps both in sync on every change. No-op
+   * everywhere else (the null integration reports `available === false`).
+   */
+  const initSteam = async () => {
+    await steam.init().catch(() => false);
+    if (!steam.available) return;
+
+    const remote = pullCloudSave(steam);
+    if (remote) {
+      const merged = resolveCloudConflict(usePlayerStore.getState().player, remote);
+      usePlayerStore.getState().replacePlayer(merged);
+    }
+    const player = usePlayerStore.getState().player;
+    syncSteamProgress(steam, player);
+    pushCloudSave(steam, player);
+    setSteamLobbyPresence(steam, { status: 'Im Hauptmenü' });
+
+    if (!steamSubscribed) {
+      steamSubscribed = true;
+      // Pump Steam's callback queue (invites, overlay, lobby events).
+      setInterval(() => steam.runCallbacks(), 1000 / 30);
+      usePlayerStore.subscribe(() => {
+        const p = usePlayerStore.getState().player;
+        syncSteamProgress(steam, p);
+        pushCloudSave(steam, p);
+      });
+    }
+  };
 
   const pushNow = async () => {
     if (!cloudSaveService.available) return;
@@ -104,6 +145,9 @@ export const useAccountStore = create<AccountState>((set, get) => {
       } else {
         set({ cloud: 'offline' });
       }
+
+      // Steam Cloud + achievements/stats run alongside the relay cloud save.
+      await initSteam();
     },
 
     signIn: async (provider) => {
