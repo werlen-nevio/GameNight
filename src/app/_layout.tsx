@@ -13,6 +13,7 @@ import { ThemeProvider } from '../core/design/ThemeProvider';
 import { Audio } from '../core/services';
 import { THEME_BY_ID } from '../domain';
 import { usePlayerStore, useSettingsStore } from '../state';
+import { useAccountStore } from '../state/accountStore';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -26,6 +27,11 @@ export default function RootLayout() {
   useEffect(() => {
     void Audio.init();
   }, []);
+
+  // Sign in (guest) + connect account services + cloud sync, once hydrated.
+  useEffect(() => {
+    if (playerHydrated && settingsHydrated) void useAccountStore.getState().init();
+  }, [playerHydrated, settingsHydrated]);
 
   const ready = (fontsLoaded || !!fontError) && playerHydrated && settingsHydrated;
 

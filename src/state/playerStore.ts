@@ -60,6 +60,8 @@ interface PlayerState {
   rename: (name: string) => void;
   addCurrency: (coins: number, gems?: number) => void;
   resetProgress: () => void;
+  /** Replaces the whole profile (used by a newer cloud-save pull). */
+  replacePlayer: (player: Player) => void;
   _setHydrated: () => void;
 }
 
@@ -254,6 +256,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       resetProgress: () => set({ player: createDefaultPlayer(get().player.name) }),
+
+      replacePlayer: (player) => set({ player }),
 
       _setHydrated: () => set({ hydrated: true }),
     }),
