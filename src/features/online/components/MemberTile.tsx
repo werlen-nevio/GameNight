@@ -19,10 +19,13 @@ export function MemberTile({
   member,
   canManage,
   onKick,
+  speaking,
 }: {
   member: LobbyMember;
   canManage: boolean;
   onKick: () => void;
+  /** Highlights the avatar with a voice-activity ring. */
+  speaking?: boolean;
 }) {
   return (
     <Animated.View entering={ZoomIn.springify().damping(15)} exiting={FadeOut} style={{ width: '31%' }}>
@@ -58,6 +61,25 @@ export function MemberTile({
         )}
 
         <View>
+          {/* Voice speaking ring */}
+          {speaking && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: -4,
+                left: -4,
+                right: -4,
+                bottom: -4,
+                borderRadius: 30,
+                borderWidth: 3,
+                borderColor: '#2BD576',
+                shadowColor: '#2BD576',
+                shadowOpacity: 0.9,
+                shadowRadius: 8,
+              }}
+            />
+          )}
           <Avatar emoji={member.avatarEmoji} size={48} />
           {/* Ready check */}
           {member.ready && member.connected && (

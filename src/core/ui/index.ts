@@ -15,4 +15,5 @@ export { Divider } from './Divider';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { Tag, type TagTone } from './Tag';
 export { Toggle } from './Toggle';
+export { Slider } from './Slider';
 export { ModalHeader } from './ModalHeader';

@@ -19,10 +19,13 @@ import { Feedback } from '../../core/services';
 import { createId } from '../../core/utils/id';
 import { ALL_MODE_METAS, getModule } from '../games/registry';
 import { useOnlineStore } from '../../state/onlineStore';
+import { useVoiceStore } from '../../state/voiceStore';
+import { LobbyVoiceSignaling } from '../../core/voice/LobbyVoiceSignaling';
 import { InvitePanel } from './components/InvitePanel';
 import { MemberTile } from './components/MemberTile';
 import { ChatPanel } from './components/ChatPanel';
 import { EmoteBar } from './components/EmoteBar';
+import { VoicePanel } from './components/VoicePanel';
 import { FloatingEmotes, type FloatingEmote } from './components/FloatingEmotes';
 import { EMOTE_BY_ID } from '../../domain';
 
@@ -36,6 +39,10 @@ export function LobbyScreen() {
   const status = useOnlineStore((s) => s.status);
   const error = useOnlineStore((s) => s.error);
   const leave = useOnlineStore((s) => s.leave);
+  const net = useOnlineStore((s) => s.net);
+  const voice = useVoiceStore((s) => s.voice);
+  const voiceJoin = useVoiceStore((s) => s.join);
+  const voiceLeave = useVoiceStore((s) => s.leave);
 
   const [selectedMode, setSelectedMode] = useState(READY_MODES[0]?.id);
   const [emotes, setEmotes] = useState<FloatingEmote[]>([]);
@@ -62,6 +69,17 @@ export function LobbyScreen() {
       setBurst((b) => b + 1);
     });
   }, [controller]);
+
+  // Auto-join voice on entering the lobby; leave on exit (fully isolated).
+  useEffect(() => {
+    if (!net) return;
+    const signaling = new LobbyVoiceSignaling(net);
+    void voiceJoin(signaling);
+    return () => {
+      voiceLeave();
+      signaling.dispose();
+    };
+  }, [net, voiceJoin, voiceLeave]);
 
   // Navigate into the synchronized match when it starts.
   useEffect(() => {
@@ -141,7 +159,13 @@ export function LobbyScreen() {
         {/* Members */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, rowGap: spacing.md, justifyContent: 'flex-start' }}>
           {lobby.members.map((m) => (
-            <MemberTile key={m.persistentId} member={m} canManage={isHost} onKick={() => controller?.kick(m.persistentId)} />
+            <MemberTile
+              key={m.persistentId}
+              member={m}
+              canManage={isHost}
+              onKick={() => controller?.kick(m.persistentId)}
+              speaking={m.isYou ? voice.selfSpeaking : voice.participants[m.peerId]?.speaking}
+            />
           ))}
         </View>
 
@@ -180,6 +204,7 @@ export function LobbyScreen() {
           </ScrollView>
         </View>
 
+        <VoicePanel />
         <ChatPanel messages={lobby.chat} selfId={lobby.selfPersistentId} onSend={(t) => controller?.sendChat(t)} />
         <EmoteBar onEmote={(id) => controller?.sendEmote(id)} />
       </ScrollView>
