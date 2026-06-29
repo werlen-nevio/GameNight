@@ -187,6 +187,13 @@ export const usePlayerStore = create<PlayerState>()(
           }
         }
 
+        // Fold the *final* coin gains (incl. achievement payouts) into the
+        // lifetime stat so it never undercounts.
+        next = {
+          ...next,
+          stats: { ...next.stats, coinsEarned: before.stats.coinsEarned + coinsGained },
+        };
+
         set({ player: next });
 
         return {

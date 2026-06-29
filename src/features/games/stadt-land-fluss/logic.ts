@@ -57,7 +57,7 @@ export function pickCategories(opts: {
   // Bias toward categories at or below the chosen difficulty for fairness.
   const order: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
   const maxIdx = order.indexOf(difficulty);
-  const preferred = pool.filter((c) => order.indexOf(c.difficulty) <= maxIdx + 1);
+  const preferred = pool.filter((c) => order.indexOf(c.difficulty) <= maxIdx);
   const source = preferred.length >= count ? preferred : pool;
   return rng.sample(source, count);
 }

@@ -38,13 +38,14 @@ export function HigherLower({ session, onComplete, onQuit }: GameplayProps) {
     const chosen = config.options?.category as string | undefined;
     const found = chosen && chosen !== 'random' ? HL_CATEGORIES.find((c) => c.id === chosen) : undefined;
     return found ?? rng.pick(HL_CATEGORIES)!;
-    // new category each turn when random
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turnKey]);
+    // A new (or freshly sampled) category is drawn each turn via `turnKey`.
+  }, [turnKey, config.options, rng]);
 
+  // `turnKey` is included so a fresh sequence is drawn every turn even when the
+  // category reference is stable (a fixed, non-random category).
   const sequence = useMemo<HLItem[]>(
     () => rng.sample(category.items, guesses + 1),
-    [category, guesses, rng],
+    [category, guesses, rng, turnKey],
   );
 
   const currentHuman = humans[humanIndex];
